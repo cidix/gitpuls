@@ -264,6 +264,9 @@ async function readmeAufnahmen(browser, instanz) {
     breite = await bild(page, `github-${modus}.png`, 'section.zone.github', 'section.zone.github',
       (p) => p.addStyleTag({ content: 'section.zone.github > :not(.zonenkopf, .lage, .tiles3) { display: none }' }));
     await bild(page, `server-${modus}.png`, 'section.zone.server', 'section.zone.server > .zwei');
+    // die ganze Serverzone am Stück (Kopf, Lagesatz, Dienste, die vier Kästen) und die ganze Seite bis zur Fusszeile (README, 15.10.2026)
+    await bild(page, `serverzone-${modus}.png`, 'section.zone.server');
+    await bild(page, `seite-${modus}.png`, null, 'footer.fusszeile');
     if (modus === 'dunkel') {
       await bild(page, 'maschine.png', 'section.zone.server .fuss > .meta:nth-child(1)', 'section.zone.server .fuss > .meta:nth-child(2)');
       await bild(page, 'firewall.png', 'section.zone.server .fuss > .meta:nth-child(3)', 'section.zone.server .fuss > .meta:nth-child(4)');

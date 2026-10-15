@@ -25,27 +25,29 @@
 
 </div>
 
+## The whole page
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/full-page-dark.png">
+  <img alt="The whole page from top to bottom with demo data: the server zone with services and four cards, the GitHub zone with summary sentence and three tiles, needs attention, the project list, history, other repos by stars and the footer" src="docs/screenshots/full-page-light.png">
+</picture>
+
 *All images come from the bundled demo data (`demo/demodaten.py`); all names are invented.*
 
 ## What you see
 
-### Server and services
+### Server
 
 The server zone sums up the host in one sentence and lists your services with their last timer run; each row opens to its containers, runs and distance to the default branch.
 
-<img alt="Server zone: a summary sentence, one update to pull by hand, and five services, each with a green dot and its last clean run" src="docs/screenshots/server.png">
-
-### Machine and installed software
-
 Load, memory, disk and boot time of the machine next to the versions of Docker, Compose, containerd, Tailscale, the system and the kernel.
-
-<img alt="Two cards: Machine with product, host, load, memory, disk, cores and boot time; Installed with Docker, Compose, containerd, Tailscale, served ports, system and kernel" src="docs/screenshots/machine-installed.png">
-
-### Firewall and updates
 
 Rules in INPUT and DOCKER-USER per IP family, whether they survive a reboot, and pending apt updates, including the ones you have to pull by hand.
 
-<img alt="Two cards: Firewall with iptables, seven INPUT and four DOCKER-USER rules for IPv4 and IPv6, netfilter-persistent active, restored after restart, nat and raw not compared; Updates with one upgradable package, one Docker update by hand, no restart required and unattended-upgrades active" src="docs/screenshots/firewall-updates.png">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/server-zone-dark.png">
+  <img alt="Server zone: a summary sentence, one update to pull by hand, five services each with a green dot and its last run, and four cards: Machine with product, host, load, memory, disk, cores and boot time; Installed with Docker, Compose, containerd, Tailscale, served ports, system and kernel; Firewall with seven INPUT and four DOCKER-USER rules for IPv4 and IPv6, netfilter-persistent active, nat and raw not compared; Updates with one upgradable package, one Docker update by hand, no restart required and unattended-upgrades active" src="docs/screenshots/server-zone-light.png">
+</picture>
 
 ### Needs attention
 
