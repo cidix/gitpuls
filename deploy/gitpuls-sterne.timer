@@ -1,0 +1,11 @@
+[Unit]
+Description=gitpuls Sterne täglich
+
+[Timer]
+# Täglich 03:15, festes Raster. Search-API: 30 Aufrufe je Minute, ein Lauf braucht bis zu 10.
+OnCalendar=*-*-* 03:15:00
+AccuracySec=5min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

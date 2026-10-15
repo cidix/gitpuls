@@ -1,0 +1,14 @@
+[Unit]
+Description=gitpuls: eigene Commits einsammeln
+After=docker.service
+Requires=docker.service
+
+[Service]
+# Beispielpfad: der Checkout liegt unter /opt/gitpuls; liegt er anderswo, hier und bei EnvironmentFile anpassen.
+Type=oneshot
+WorkingDirectory=/opt/gitpuls
+# GITPULS_TAG kommt aus /opt/gitpuls/.env, das compose von selbst liest.
+# Der Sammler läuft im SELBEN Bild wie der Dienst, es gibt keine zweite Codefassung.
+# Die Zone kommt wie für den Dienst aus TZ in der .env über compose.yaml (10.10.2026, Audit S9), nicht mehr fest aus einem -e TZ=… in dieser Zeile.
+ExecStart=/usr/bin/docker compose run --rm --user 10001:10001 gitpuls python -m app.sammler
+TimeoutStartSec=600

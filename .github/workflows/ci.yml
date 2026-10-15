@@ -1,0 +1,35 @@
+# Build und Unit-Tests bei Push und Pull Request, sonst nichts. Actions per Commit-SHA gepinnt (Lieferkette), Rechte nur lesend.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Im selben Basisbild wie das Dockerfile: der ISO-Wochenschlüssel in SQL braucht SQLite 3.46, git und bash brauchen die Tests.
+      - name: Unit-Tests unter drei Zonen
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w python:3.13-slim-trixie@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a sh -c '
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends git > /dev/null &&
+            git config --global --add safe.directory /w &&
+            pip install -q --disable-pip-version-check --root-user-action=ignore --require-hashes -r requirements.txt &&
+            for zone in UTC Europe/Zurich Pacific/Auckland; do
+              for m in tests/test_*.py tests/gegenprobe.py; do
+                TZ=$zone python -m tests.$(basename $m .py) > /tmp/log 2>&1 || { tail -30 /tmp/log; echo "rot: $m unter TZ=$zone"; exit 1; }
+              done
+              echo "TZ=$zone: alle Module grün"
+            done'
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker build -t gitpuls:ci .

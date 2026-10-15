@@ -1,0 +1,12 @@
+{
+  "name": "gitpuls-demo",
+  "private": true,
+  "type": "module",
+  "description": "Aufnahmen der Oberfläche auf dem Demodatensatz, für die Landingpage gitpuls.com",
+  "scripts": {
+    "aufnahmen": "node aufnahmen.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

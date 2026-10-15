@@ -1,0 +1,11 @@
+[Unit]
+Description=gitpuls Serverstand alle 5 Minuten
+
+[Timer]
+# Festes Raster wie die anderen gitpuls-Timer. Die Seite warnt ab 15 Minuten Alter (app/web.py).
+OnCalendar=*:0/5
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

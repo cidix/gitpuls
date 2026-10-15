@@ -1,0 +1,477 @@
+#!/usr/bin/python3
+"""Serverstand: Maschine, Zustand, installierte Werkzeuge und die Dienste aus der Diensttabelle, als server.json ins gitpuls-Volume.
+Läuft als root auf dem Host (gitpuls-server.timer, alle 5 Minuten), dasselbe Muster wie tools/deploy-stand.sh: der Webprozess liest
+nur die Datei, kein Docker-Socket im Container. Python, weil der Host python3 hat und kein jq (gemessen 08.09.2026).
+
+Jede Messung für sich (10.10.2026, Audit B2 und S11): fehlt ein Werkzeug (docker, Compose, systemctl, tailscale, apt-get, ufw, iptables)
+oder scheitert ein Aufruf, ist genau dieser Wert null und steht mit Grund unter "ungemessen"; alle übrigen Werte werden trotzdem
+geschrieben. Ein verweigerter Zugriff heisst «Zugriff verweigert» und nie «fehlt». Vorher brach jeder fehlende Befehl das ganze Skript
+ab, und auf einem Host ohne Tailscale, systemd oder Docker entstand nie eine server.json.
+
+Einstellungen (10.10.2026, Audit S8, S15, S16) aus der Umgebung, die Units lesen sie aus der .env des Checkouts wie compose.yaml:
+GITPULS_SERVER_ZIEL (Vorgabe server.json im Docker-Volume GITPULS_VOLUME, dessen Vorgabe gitpuls-daten), GITPULS_PRODUKT (Vorgabe
+leer), GITPULS_DIENSTE (Vorgabe tools/dienste.json neben diesem Skript; fehlt sie, steht das unter "ungemessen", ein Beispiel steht in
+tools/dienste.beispiel.json).
+
+Geschrieben wird über temporäre Datei plus rename, nie ein halbes JSON. Keine Geheimnisse: keine Umgebungsvariablen, keine Tokens, nur
+Messwerte."""
+import fnmatch
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
+
+VOLUME = os.environ.get("GITPULS_VOLUME") or "gitpuls-daten"
+ZIEL = os.environ.get("GITPULS_SERVER_ZIEL") or f"/var/lib/docker/volumes/{VOLUME}/_data/server.json"
+DIENSTE = os.environ.get("GITPULS_DIENSTE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "dienste.json")
+PRODUKT = os.environ.get("GITPULS_PRODUKT", "")
+EIGENE = "gitpuls-server"   # die Timer-Unit dieses Skripts (deploy/gitpuls-server.timer)
+KETTEN = ("INPUT", "DOCKER-USER")
+# tailscaled hängt seinen Sprung in die eigene Kette selbst ein, bei jedem Start, unabhängig von
+# netfilter-persistent. Er steht zwar mit in rules.v4, gehört aber nicht zur zweiten Reihe und wird
+# nicht mitgezählt: sonst stünden acht Regeln da, wo sieben gesetzt wurden.
+TS_SPRUNG = ("-j ts-input", "-j ts-forward")
+FAMILIEN = (("IPv4", "iptables-save", "/etc/iptables/rules.v4"), ("IPv6", "ip6tables-save", "/etc/iptables/rules.v6"))
+# Ketten, die Docker in filter selbst anlegt und bei jedem Start je Netz und Container neu schreibt: DOCKER, DOCKER-FORWARD und DOCKER-ISOLATION-*,
+# seit Docker 28 dazu DOCKER-BRIDGE, DOCKER-CT und DOCKER-INTERNAL (gemessen 11.10.2026 auf dem VPS, Docker 29.9: sie weichen nach jedem
+# neuen Container vom gespeicherten Stand ab). DOCKER-USER gehört dem Betreiber und bleibt im Vergleich, ebenso jede Betreiberregel in INPUT
+# und FORWARD, auch wenn sie ein Docker-Interface nennt, und die Ketten von tailscaled (gemessen gleich).
+LAUFZEIT_KETTE = re.compile(r"DOCKER(?!-USER$)[\w-]*$")
+# nat und raw schreibt Docker je Netz, Container und veröffentlichtem Port (MASQUERADE, DNAT, DROP mit Container-IP). Seit 11.10.2026
+# (Bestätigungslauf zum Codex-Audit) werden sie nicht verglichen, sondern als «nicht verglichen» ausgewiesen: das Herausfiltern einzelner
+# Docker-Regeln verwechselte Betreiber- und Laufzeitregeln (eine eigene Regel auf docker0 fiel weg, eine MASQUERADE mit Container-IP blieb).
+NICHT_VERGLICHEN = ("nat", "raw")
+# Wo es diese Dateien gibt, legt ein Paket /var/run/reboot-required an, wenn ein Update einen Neustart verlangt: Debian
+# (unattended-upgrades, gemessen 10.10.2026 auf dem VPS) und Ubuntu (update-notifier-common). Ohne sie sagt ein fehlender Marker nichts.
+NEUSTART_MARKER = "/var/run/reboot-required"
+NEUSTART_MECHANISMUS = ("/etc/kernel/postinst.d/unattended-upgrades", "/usr/share/update-notifier/notify-reboot-required")
+FRIST_S = 20   # je Aufruf; der Timer gibt dem ganzen Lauf 60 s
+
+UNGEMESSEN = {}   # Schlüssel -> Grund, landet als "ungemessen" in server.json
+
+
+class Ungemessen(Exception):
+    """Ein Wert, der sich auf diesem Host nicht messen lässt; der Text ist der Grund."""
+
+
+def lauf(*cmd):
+    return subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=FRIST_S).stdout
+
+
+def grund(e):
+    """Der Grund einer gescheiterten Messung als kurzer Text. Ein verweigerter Zugriff ist nie «fehlt» (Audit S11)."""
+    text = " ".join(x for x in (getattr(e, "stderr", None), getattr(e, "stdout", None)) if isinstance(x, str))
+    if isinstance(e, PermissionError) or re.search(r"permission denied|not permitted|access denied", text, re.I):
+        return "Zugriff verweigert"
+    if isinstance(e, FileNotFoundError):
+        return f"{e.filename or e} fehlt"
+    if isinstance(e, subprocess.TimeoutExpired):
+        return f"{e.cmd[0]}: keine Antwort nach {FRIST_S} s"
+    if isinstance(e, subprocess.CalledProcessError):
+        erste = (text.strip().splitlines() or [""])[0][:160]
+        return f"{' '.join(map(str, e.cmd[:2]))}: Exit {e.returncode}" + (f", {erste}" if erste else "")
+    return str(e) if isinstance(e, Ungemessen) else f"{type(e).__name__}: {e}"
+
+
+def messung(schluessel, fn, *args):
+    """Eine Messung für sich: ihr Wert, oder None mit Grund in UNGEMESSEN."""
+    try:
+        return fn(*args)
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError, Ungemessen) as e:
+        UNGEMESSEN[schluessel] = grund(e)
+        return None
+
+
+def iso(d):
+    return d.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def lokale_zone():
+    """Die Zone, in der systemctl seine Zeiten schreibt: TZ dieses Prozesses, sonst /etc/localtime, sonst UTC."""
+    tz = os.environ.get("TZ", "").lstrip(":")
+    try:
+        if tz.startswith("/"):
+            return ZoneInfo.from_file(open(tz, "rb"))
+        if tz:
+            return ZoneInfo(tz)
+        return ZoneInfo.from_file(open("/etc/localtime", "rb"))
+    except (OSError, ValueError):
+        return timezone.utc
+
+
+def zeit(s, zone=None):
+    """systemctl show gibt "Tue 2026-09-08 04:05:27 CEST" oder "... UTC" (gemessen: Timer lokal, Service mit --timestamp=utc), leer oder
+    n/a wenn nie gelaufen. Die Zonenbezeichnung entscheidet (10.10.2026, Audit S25): in der doppelten Stunde der Rückstellung ist
+    25.10.2026 02:30 CEST 00:30Z und 02:30 CET 01:30Z; vorher ergaben beide denselben Zeitpunkt."""
+    try:
+        t, kurz = s.rsplit(" ", 1)
+        d = datetime.strptime(t, "%a %Y-%m-%d %H:%M:%S")
+    except (AttributeError, ValueError):
+        return None
+    if kurz == "UTC":
+        return iso(d.replace(tzinfo=timezone.utc))
+    zone = zone or lokale_zone()
+    passend = [x for x in (d.replace(tzinfo=zone, fold=f) for f in (0, 1)) if x.tzname() == kurz]
+    return iso(passend[0] if passend else d.replace(tzinfo=zone))
+
+
+def show(unit, *props):
+    return dict(z.split("=", 1) for z in lauf("systemctl", "show", unit, "-p", ",".join(props)).splitlines() if "=" in z)
+
+
+def tabellen(text):
+    """iptables-save nach Tabellen: {"filter": [Zeilen], "nat": […], …}, ohne Kommentare und COMMIT."""
+    aus, tabelle = {}, None
+    for z in text.splitlines():
+        if z.startswith("*"):
+            tabelle = z[1:].strip()
+            aus.setdefault(tabelle, [])
+        elif tabelle and z.strip() and not z.startswith(("#", "COMMIT")):
+            aus[tabelle].append(z)
+    return aus
+
+
+def regeln(text):
+    """Die -A-Zeilen der Tabelle filter je gezählter Kette, ohne tailscaleds eigenen Sprung. Nur filter (Codex-Audit 11.10.2026, Befund 5):
+    vorher zählte jede Tabelle, und eine Regel in nat INPUT verdeckte eine leere filter-INPUT-Kette mit Policy ACCEPT. DOCKER-USER nur, wo
+    die Kette existiert (11.10.2026, Probe Rootless-Docker und Podman): dort legt Docker sie im Netz des Hosts nie an, und «Kette leer» hiesse
+    fälschlich, dass veröffentlichte Ports an INPUT vorbeigehen."""
+    filt = tabellen(text).get("filter", [])
+    aus = {k: [] for k in KETTEN if k == "INPUT" or any(z.startswith(f":{k} ") for z in filt)}
+    for z in filt:
+        t = z.split()
+        if len(t) > 1 and t[0] == "-A" and t[1] in KETTEN and not z.endswith(TS_SPRUNG):
+            aus[t[1]].append(z)
+    return aus
+
+
+def regelsatz(text):
+    """Der wirksame Regelsatz für den Vergleich laufend gegen gespeichert (10.10.2026, Audit S10): je verglichener Tabelle jede Kette mit
+    ihrer Policy und jede Regel samt Sprung, in ihrer Reihenfolge, ausser den Ketten, die Docker selbst anlegt (LAUFZEIT_KETTE); die Sprünge
+    in sie zählen mit. Zähler fallen weg. Verglichen werden filter und mangle, nicht nat und raw (NICHT_VERGLICHEN): die weist der Stand als
+    «nicht verglichen» aus, statt sie still als gespeichert zu werten (Codex-Audit 11.10.2026, Befund 5 und Bestätigungslauf)."""
+    aus = []
+    for tabelle, zeilen in sorted(tabellen(text).items()):
+        if tabelle in NICHT_VERGLICHEN:
+            continue
+        for z in zeilen:
+            t = z.split()
+            if len(t) > 1 and t[0].startswith(":") and not LAUFZEIT_KETTE.match(t[0][1:]):
+                aus.append(f"{tabelle} {t[0]} {t[1]}")
+            elif len(t) > 1 and t[0] == "-A" and not LAUFZEIT_KETTE.match(t[1]):
+                aus.append(f"{tabelle} " + " ".join(t))
+    return aus
+
+
+def firewall(boot):
+    """Die zweite Reihe, gemessen statt behauptet. Seit 08.09.2026 läuft sie über iptables und
+    iptables-persistent, nicht über ufw; "ufw nicht installiert" war ab da die falsche Aussage.
+
+    Gemessen wird, was gilt: je Familie die Regeln in INPUT und DOCKER-USER, ob netfilter-persistent
+    enabled ist, ob der laufende Regelsatz dem gespeicherten entspricht und ob die gespeicherte Datei älter
+    ist als der Boot. Nur beides zusammen belegt, dass die Regeln einen Neustart überleben; dass eine
+    Datei existiert, sagt darüber nichts. Gemessen nach dem Neustart am 08.09.2026 17:03: sieben INPUT-
+    und vier DOCKER-USER-Regeln je Familie, wiederhergestellt aus dem Stand von 16:52.
+    Ohne ufw ist "ufw" null (nicht installiert); ein ufw, das sich nicht abfragen lässt, ist nicht gemessen.
+
+    Nur iptables-persistent ist messbar (11.10.2026, Probe fremder Hosts): ohne netfilter-persistent und ohne gespeicherte Regeldatei sind
+    Persistenz und Vergleich nicht gemessen, nicht «nicht aktiv» und «weicht ab»; ufw und nftables.service speichern anderswo. Ein Host
+    mit nft und ohne iptables-save heisst nftables, seine Regeln wertet v1 nicht aus."""
+    ufw = messung("firewall.ufw", lambda: lauf("ufw", "status").splitlines()[0].replace("Status: ", "")) if shutil.which("ufw") else None
+    persistent = messung("firewall.persistent", netfilter_persistent)
+    if not shutil.which("iptables-save") and shutil.which("nft") and not (ufw and ufw != "inactive"):
+        UNGEMESSEN["firewall.nftables"] = "nftables-Regeln wertet v1 nicht aus"
+        return {"art": "nftables", "ufw": ufw, "familien": {}, "nicht_gemessen": [], "persistent": persistent, "wie_gespeichert": None, "nicht_verglichen": [],
+                "gespeichert_utc": None, "seit_neustart": False}
+    familien, gleich, gespeichert, nicht_gemessen, vorhanden, ungeprueft = {}, True, None, [], False, set()
+    for name, befehl, datei in FAMILIEN:
+        text = messung(f"firewall.{name}", lauf, befehl)
+        if text is None:
+            # Seit 03.10.2026 (Codex-Audit) als nicht gemessen geführt und auf der Seite eine Abweichung; vorher fiel die Familie still
+            # weg, und die übrige bestimmte allein «wie gespeichert».
+            nicht_gemessen.append(name)
+            continue
+        familien[name] = {k: len(v) for k, v in regeln(text).items()}
+        ungeprueft |= set(tabellen(text)) & set(NICHT_VERGLICHEN)
+        vorhanden = vorhanden or os.path.exists(datei)
+        try:
+            gleich = regelsatz(open(datei).read()) == regelsatz(text) and gleich
+            gespeichert = max(gespeichert or 0, os.path.getmtime(datei))
+        except OSError:
+            gleich = False
+    gesp = datetime.fromtimestamp(gespeichert, timezone.utc) if gespeichert else None
+    wie = (bool(familien) and gleich) if vorhanden or persistent is not None else None
+    if wie is None:
+        UNGEMESSEN["firewall.gespeichert"] = f"weder netfilter-persistent noch {', '.join(d for _, _, d in FAMILIEN)}"
+    return {"art": "ufw" if ufw and ufw != "inactive" else "iptables" if familien or nicht_gemessen else "keine",
+            "ufw": ufw, "familien": familien, "nicht_gemessen": nicht_gemessen, "persistent": persistent,
+            "wie_gespeichert": wie, "nicht_verglichen": sorted(ungeprueft),
+            "gespeichert_utc": iso(gesp) if gesp else None,
+            "seit_neustart": bool(gesp and boot) and gleich and gesp < boot}
+
+
+def netfilter_persistent():
+    """enabled heisst True, ein anderer Zustand der Unit False; kennt systemd sie nicht (not-found, gemessen auf Ubuntu 24.04 mit ufw), ist
+    iptables-persistent nicht der Weg dieses Hosts."""
+    aus = subprocess.run(["systemctl", "is-enabled", "netfilter-persistent"], capture_output=True, text=True, timeout=FRIST_S).stdout.strip()
+    if aus in ("", "not-found"):
+        raise Ungemessen("netfilter-persistent nicht installiert")
+    return aus == "enabled"
+
+
+def container(name):
+    """Jeder Schlüssel immer da, nicht Ermittelbares ausdrücklich null: der Webprozess las c["bild"] und antwortete 500, als
+    ein Container nach einer Umbenennung fehlte (11.09.2026). «fehlt» nur, wenn Docker den Namen nicht kennt; ohne
+    Docker oder ohne Zugriff ist der Container nicht gemessen (10.10.2026)."""
+    leer = {"name": name, "seit_utc": None, "bild": None, "neustarts": None, "gesund": None}
+    try:
+        j = json.loads(lauf("docker", "inspect", name))[0]
+    except subprocess.CalledProcessError as e:
+        if re.search(r"no such (object|container)", f"{e.stderr} {e.stdout}", re.I):
+            return {**leer, "status": "fehlt"}
+        return {**leer, "status": "ungemessen", "grund": grund(e)}
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError) as e:
+        return {**leer, "status": "ungemessen", "grund": grund(e)}
+    st = j["State"]
+    return {"name": name, "status": st["Status"], "seit_utc": st["StartedAt"][:19] + "Z", "bild": j["Config"]["Image"],
+            "neustarts": j["RestartCount"], "gesund": (st.get("Health") or {}).get("Status")}
+
+
+def timer(unit):
+    """Zwei Units, getrennt gemessen (03.10.2026, Codex-Audit): timer_aktiv ist der ActiveState der Timer-Unit, status, ergebnis und exit
+    gehören zum Service. Vorher kam nur der Service-Zustand mit, und ein gestoppter Timer mit sauberem letztem Lauf stand grün da.
+    Ohne systemctl oder ohne Zugriff ist der Timer nicht gemessen (10.10.2026), «fehlt» heisst: systemd kennt die Unit nicht."""
+    try:
+        t = show(unit + ".timer", "LoadState", "ActiveState", "NextElapseUSecRealtime", "TimersCalendar")
+        if t.get("LoadState") != "loaded":
+            return {"unit": unit, "status": "fehlt"}
+        s = show(unit + ".service", "Result", "ExecMainStatus", "ExecMainStartTimestamp", "ExecMainExitTimestamp", "ActiveState")
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"unit": unit, "status": "ungemessen", "grund": grund(e)}
+    # Im Moment des Auslösens ist NextElapseUSecRealtime leer (gemessen 08.09.2026 05:10:07, ein Dienst-Timer und
+    # gitpuls-server gleichzeitig mit dem Timer); TimersCalendar trägt next_elapse trotzdem.
+    m = re.search(r"next_elapse=([^}]+?)\s*}", t.get("TimersCalendar", ""))
+    aus = {"unit": unit, "timer_aktiv": t.get("ActiveState"), "status": s.get("ActiveState"), "gestartet_utc": zeit(s.get("ExecMainStartTimestamp")),
+           "letzter_utc": zeit(s.get("ExecMainExitTimestamp")), "ergebnis": s.get("Result"), "exit": int(s.get("ExecMainStatus") or 0),
+           "naechster_utc": zeit(t.get("NextElapseUSecRealtime")) or (zeit(m.group(1)) if m else None)}
+    if unit == EIGENE:   # misst sich selbst beim Laufen: die geschriebene Datei IST der erfolgreiche Lauf; timer_aktiv bleibt gemessen
+        aus.update(status="inactive", letzter_utc=iso(datetime.now(timezone.utc)), ergebnis="success", exit=0)
+    return aus
+
+
+def apt_config():
+    """apt-config dump als (Werte, Listen): «Schlüssel "Wert";» und Listeneinträge «Schlüssel:: "Wert";»."""
+    werte, listen = {}, {}
+    for z in lauf("apt-config", "dump").splitlines():
+        m = re.match(r'(\S+?)(::)? "(.*)";$', z)
+        if m:
+            if m.group(2):
+                listen.setdefault(m.group(1), []).append(m.group(3))
+            else:
+                werte[m.group(1)] = m.group(3)
+    return werte, listen
+
+
+def releases():
+    """Die Release-Einträge aus apt-cache policy, je mit Feldern o, a, n, l, c und dem Host der Quelle."""
+    aus, site = [], ""
+    for z in lauf("apt-cache", "policy").splitlines():
+        if m := re.match(r"\s*-?\d+ (\S+://\S+) ", z):
+            site = urlparse(m.group(1)).hostname or ""
+        elif m := re.match(r"\s*release (.*)$", z):
+            aus.append(dict(x.split("=", 1) for x in m.group(1).split(",") if "=" in x) | {"site": site})
+    return aus
+
+
+FELDER = {"origin": "o", "o": "o", "label": "l", "l": "l", "archive": "a", "suite": "a", "a": "a", "codename": "n", "n": "n",
+          "component": "c", "c": "c", "site": "site"}
+
+
+def erlaubt(rel, muster, herkunft, ersatz):
+    """Deckt ein Origins-Pattern («origin=Debian,codename=${distro_codename},label=Debian») oder ein Allowed-Origins-Eintrag
+    («Debian:trixie-security», Herkunft und Archiv oder Codename) diesen Release? Platzhalter wie unattended-upgrades, * als Muster."""
+    setzen = lambda v: re.sub(r"\$\{(\w+)\}", lambda m: ersatz.get(m.group(1), m.group(0)), v)
+    for m in muster:
+        teile = [x.partition("=") for x in re.split(r"(?<!\\),", m) if x]
+        if all(fnmatch.fnmatchcase(rel.get(FELDER.get(k.strip(), k.strip()), ""), setzen(v.replace("\\,", ","))) for k, _, v in teile):
+            return True
+    for h in herkunft:
+        o, _, a = setzen(h).rpartition(":")
+        if fnmatch.fnmatchcase(rel.get("o", ""), o) and (fnmatch.fnmatchcase(rel.get("a", ""), a) or fnmatch.fnmatchcase(rel.get("n", ""), a)):
+            return True
+    return False
+
+
+def pakete(osr):
+    """Upgradebare Pakete je Quelle aus derselben Simulation wie bisher, dazu je Quelle, ob unattended-upgrades sie zieht (10.10.2026, Audit
+    S12). apt nennt die Quelle in der Klammer als Label:Version/Archiv («Inst iotop (0.6-42 Debian:13.6/stable [amd64])», «Inst
+    docker-model-plugin (1.2.6-1~debian.13~trixie Docker CE:trixie [amd64])», gemessen 08.09.2026); der Schlüssel ist Label:Archiv ohne
+    die Version. Gedeckt ist eine Quelle, wenn ihr Release aus apt-cache policy auf ein Origins-Pattern oder einen Allowed-Origins-Eintrag
+    aus apt-config passt. Vorher galt jede Quelle mit «Debian» vorn als gedeckt; trixie-updates (n=trixie-updates) deckt das Muster
+    codename=${distro_codename} des VPS aber nicht (gemessen 10.10.2026)."""
+    quellen, je_quelle = {}, {}
+    for z in lauf("apt-get", "-s", "upgrade").splitlines():
+        if z.startswith("Inst "):
+            m = re.search(r"\(\S+ (.+?) \[[^\]]*\]\)\s*$", z)
+            herkunft = [x.strip() for x in m.group(1).split(", ")] if m else ["unbekannt"]
+            q = re.sub(r":[^/:]+/", ":", herkunft[0])   # «Debian:13.6/stable» -> «Debian:stable»
+            quellen[q] = quellen.get(q, 0) + 1
+            je_quelle.setdefault(q, set()).update(herkunft)
+    auto = messung("pakete_auto", deckung, je_quelle, osr) if je_quelle else {}
+    return quellen, auto or {}
+
+
+def deckung(je_quelle, osr):
+    """Je Quelle True, wenn jede ihrer Herkunftsangaben einen gedeckten Release hat; eine Angabe ohne Release in apt-cache policy ist
+    nicht gedeckt."""
+    _, listen = apt_config()
+    muster, herkunft = listen.get("Unattended-Upgrade::Origins-Pattern", []), listen.get("Unattended-Upgrade::Allowed-Origins", [])
+    ersatz = {"distro_id": (osr.get("ID") or "").strip('"').capitalize(), "distro_codename": (osr.get("VERSION_CODENAME") or "").strip('"')}
+    rels = releases()
+    def rel_str(r):   # wie apt sie in die Klammer schreibt: Label, dann Version/Archiv, Archiv oder der Host
+        kopf = r.get("l") or r.get("o") or ""
+        return {f"{kopf}:{r['v']}/{r['a']}" if r.get("v") and r.get("a") else f"{kopf}:{r.get('a') or r.get('n') or r['site']}"}
+    gedeckt = {h: any(erlaubt(r, muster, herkunft, ersatz) for r in rels if h in rel_str(r)) for hs in je_quelle.values() for h in hs}
+    return {q: all(gedeckt[h] for h in hs) for q, hs in je_quelle.items()}
+
+
+def automatik():
+    """unattended-upgrades gilt als aktiv, wenn sein Dienst läuft und APT::Periodic::Unattended-Upgrade gesetzt ist (10.10.2026, Audit S12);
+    vorher reichte «enabled», das nichts darüber sagt, ob er gerade läuft."""
+    werte, _ = apt_config()
+    dienst = subprocess.run(["systemctl", "is-active", "unattended-upgrades"], capture_output=True, text=True, timeout=FRIST_S).stdout.strip()
+    return dienst == "active" and werte.get("APT::Periodic::Unattended-Upgrade", "0") not in ("", "0")
+
+
+def neustart():
+    """Neustart nötig? Ein fehlender Marker heisst nur dort «nein», wo ein Paket ihn nachweislich anlegt (Audit S11)."""
+    if os.path.exists(NEUSTART_MARKER):
+        return True
+    if any(os.path.exists(p) for p in NEUSTART_MECHANISMUS):
+        return False
+    raise Ungemessen(f"kein Mechanismus für {NEUSTART_MARKER} ({', '.join(NEUSTART_MECHANISMUS)} fehlen)")
+
+
+def deploy_lesen():
+    """deploy.json von tools/deploy-stand.sh: (Einträge je Dienstname, Fehler). Fehlt die Datei, gibt es noch keinen Stand (None je Dienst);
+    ist sie unlesbar oder kein Objekt, trägt jeder Dienst den Grund (Codex-Audit 11.10.2026), statt als «nicht gemessen» ohne Grund zu
+    erscheinen. Seit 11.10.2026 je Dienst, nicht je Repo (Befund 9): zwei Dienste eines Repos überschrieben sich gegenseitig."""
+    pfad = os.path.join(os.path.dirname(ZIEL), "deploy.json")
+    try:
+        d = json.load(open(pfad))
+    except FileNotFoundError:
+        return {}, None
+    except (OSError, ValueError) as e:
+        return {}, f"deploy.json unlesbar, {grund(e)}"
+    return (d, None) if isinstance(d, dict) else ({}, f"deploy.json ist {type(d).__name__}, kein Objekt")
+
+
+def dienste_lesen():
+    """Die Diensttabelle. Fehlt sie (weder GITPULS_DIENSTE noch Datei an der Vorgabe), ist das eine Messlücke mit Grund und keine leere
+    Tabelle (10.10.2026, Bestätigungslauf): sonst sähe eine vergessene Tabelle nach dem Ausrollen aus wie ein Host ohne Dienste. Dasselbe
+    gilt seit 11.10.2026 (Codex-Audit, Befund 8) für eine Tabelle ohne Liste unter "dienste" ({"dienste": null}, {} oder eine Liste als
+    Wurzel): vorher entstand daraus still eine leere Dienstliste. Die Einträge prüft dienst_eintrag je für sich."""
+    if not os.environ.get("GITPULS_DIENSTE") and not os.path.exists(DIENSTE):
+        raise Ungemessen(f"keine Diensttabelle: weder GITPULS_DIENSTE gesetzt noch {DIENSTE} vorhanden")
+    tab = json.load(open(DIENSTE))
+    if not isinstance(tab, dict) or not isinstance(tab.get("dienste"), list):
+        raise Ungemessen(f"Diensttabelle {DIENSTE} ungültig: erwartet ein Objekt mit einer Liste unter \"dienste\"")
+    return tab["dienste"]
+
+
+TEXTE = ("zweck", "link", "repo", "checkout")
+
+
+def dienst_eintrag(i, d, deploy, deploy_fehler, namen=()):
+    """Ein Dienst der Tabelle, gemessen; ein ungültiger Eintrag betrifft nur sich selbst (Codex-Audit 11.10.2026, Befund 8): er steht mit
+    "fehler" und seinem Namen (sonst «Eintrag N») in der Liste, ohne Container und Timer. Vorher brach {} mit KeyError und container: null mit
+    TypeError die ganze Messung ab, und es entstand keine server.json."""
+    name = d.get("name") if isinstance(d, dict) else None
+    fehler = None
+    if not isinstance(d, dict):
+        fehler = f"Eintrag ist {type(d).__name__}, kein Objekt"
+    elif not isinstance(name, str) or not name:
+        fehler = "Eintrag ohne Namen"
+    elif any(not isinstance(d.get(k, []), list) or not all(isinstance(x, str) for x in d.get(k, [])) for k in ("container", "timer", "zeilen")):
+        fehler = "container, timer und zeilen müssen Listen von Texten sein"
+    elif any(d.get(k) is not None and not isinstance(d.get(k), str) for k in TEXTE):
+        fehler = f"{', '.join(TEXTE)} müssen Texte sein"
+    elif list(namen).count(name) > 1:   # der Name ist der Schlüssel des Deploy-Stands (deploy.json): doppelt hiesse wieder überschreiben
+        fehler = "Name mehrfach vergeben"
+    if fehler:
+        return {"name": name if isinstance(name, str) and name else f"Eintrag {i + 1}", "zweck": "", "link": "", "repo": None, "checkout": None,
+                "zeilen": [], "container": [], "timer": [], "deploy": None, "fehler": f"Diensttabelle: {fehler}"}
+    dp = {"fehler": deploy_fehler} if deploy_fehler else deploy.get(name)
+    return {"name": name, "zweck": d.get("zweck") or "", "link": d.get("link") or "", "repo": d.get("repo"), "checkout": d.get("checkout"),
+            "zeilen": d.get("zeilen", []), "container": [container(c) for c in d.get("container", [])],
+            "timer": [timer(t) for t in d.get("timer", [])], "deploy": dp if isinstance(dp, dict) else None}
+
+
+def messen():
+    UNGEMESSEN.clear()
+    jetzt = datetime.now(timezone.utc)
+    boot = messung("boot", lambda: jetzt - timedelta(seconds=float(open("/proc/uptime").read().split()[0])))
+    mem = messung("ram", lambda: {k: int(v.split()[0]) * 1024 for k, v in (z.split(":") for z in open("/proc/meminfo"))}) or {}
+    platte = messung("platte", shutil.disk_usage, "/")
+    osr = messung("os", lambda: dict(z.rstrip().split("=", 1) for z in open("/etc/os-release") if "=" in z)) or {}
+    docker = messung("docker", lambda: lauf("docker", "version", "-f", "{{.Server.Version}} {{range .Server.Components}}{{.Name}}={{.Version}} {{end}}").split())
+    teile = dict(x.split("=", 1) for x in (docker or [])[1:] if "=" in x)
+    serve = messung("serve", lauf, "tailscale", "serve", "status")
+    quellen, auto = messung("pakete", pakete, osr) or (None, {})
+    deploy, deploy_fehler = deploy_lesen()
+    tabelle = messung("dienste", dienste_lesen) or []
+    namen = [d.get("name") if isinstance(d, dict) else None for d in tabelle]
+    dienste = [dienst_eintrag(i, d, deploy, deploy_fehler, namen) for i, d in enumerate(tabelle)]
+    loadavg = messung("load", os.getloadavg)
+    return {
+        "erhoben_utc": iso(jetzt),
+        "maschine": {"hostname": os.uname().nodename, "produkt": PRODUKT, "vcores": os.cpu_count(), "ram_bytes": mem.get("MemTotal"),
+                     "platte_bytes": platte.total if platte else None, "os": osr.get("PRETTY_NAME", "").strip('"') or None, "kernel": os.uname().release},
+        "zustand": {"boot_utc": iso(boot) if boot else None,
+                    "load": [round(x, 2) for x in loadavg] if loadavg else None,
+                    "ram_belegt_bytes": mem["MemTotal"] - mem["MemAvailable"] if "MemAvailable" in mem else None,
+                    "ram_verfuegbar_bytes": mem.get("MemAvailable"),
+                    "platte_belegt_bytes": platte.used if platte else None, "platte_frei_bytes": platte.free if platte else None,
+                    "pakete_upgradebar": sum(quellen.values()) if quellen is not None else None, "pakete_quellen": quellen or {}, "quellen_auto": auto,
+                    "neustart_noetig": messung("neustart", neustart),
+                    "unattended_upgrades": messung("automatik", automatik)},
+        "installiert": {"docker": docker[0] if docker else None, "containerd": teile.get("containerd", "").lstrip("v") or None,
+                        "compose": (messung("compose", lauf, "docker", "compose", "version", "--short") or "").strip() or None,
+                        "tailscale": (messung("tailscale", lauf, "tailscale", "version") or "").split("\n")[0].strip() or None,
+                        "serve_ports": sorted({int(p) if p else 443 for p in re.findall(r"ts\.net(?::(\d+))? \(", serve)}) if serve is not None else None},
+        "firewall": firewall(boot),
+        "dienste": dienste,
+        "ungemessen": dict(UNGEMESSEN),
+    }
+
+
+def schreiben(ziel, daten):
+    """Atomar über temporäre Datei plus rename. Die temporäre Datei MUSS im Zielverzeichnis liegen, nicht in /tmp:
+    auf dem VPS ist /tmp ein tmpfs und das Volume ext4, über diese Grenze kopiert os.replace statt zu tauschen,
+    und ein Leser erwischt eine halb geschriebene Datei (deploy-stand.sh tat genau das bis 10ce73f)."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(ziel), prefix="." + os.path.basename(ziel) + ".")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(daten, f, ensure_ascii=False, indent=1)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, ziel)
+    except BaseException:
+        os.unlink(tmp)
+        raise
+
+
+if __name__ == "__main__":
+    daten = messen()
+    try:
+        schreiben(ZIEL, daten)
+    except OSError as e:
+        print(f"server-stand: {ZIEL} nicht schreibbar, {type(e).__name__}: {e}", file=sys.stderr)
+        sys.exit(1)
+    offen = ", ".join(f"{k} ({v})" for k, v in daten["ungemessen"].items())
+    print(f"{daten['erhoben_utc']} server.json, {os.path.getsize(ZIEL)} Bytes, {len(daten['dienste'])} Dienste" + (f"; nicht gemessen: {offen}" if offen else ""))

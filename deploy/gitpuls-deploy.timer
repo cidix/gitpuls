@@ -1,0 +1,10 @@
+[Unit]
+Description=gitpuls Deploy-Abstand stündlich
+
+[Timer]
+OnCalendar=*:05
+AccuracySec=1min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

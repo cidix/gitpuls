@@ -1,0 +1,21 @@
+# Abhängigkeiten mit Wartefrist von 7 Tagen (Lieferkette): frisch veröffentlichte, möglicherweise gekaperte Versionen kommen erst nach einer Woche.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

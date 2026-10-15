@@ -1,0 +1,5 @@
+# Nie im Export (git archive), Standard Öffentliche Repos A2: KI-Sitzungsdateien und lokale Konfiguration.
+AGENTS.md export-ignore
+.codex/ export-ignore
+.cursor/ export-ignore
+.mcp.json export-ignore

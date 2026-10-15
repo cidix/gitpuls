@@ -1,0 +1,257 @@
+{
+ "erhoben_utc": "2026-09-08T02:38:13Z",
+ "maschine": {
+  "hostname": "host-01",
+  "produkt": "Beispiel-VPS 2 vCPU, Region 1",
+  "vcores": 2,
+  "ram_bytes": 4110254080,
+  "platte_bytes": 133906022400,
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "kernel": "6.12.101+deb13-amd64"
+ },
+ "zustand": {
+  "boot_utc": "2026-08-21T10:57:10Z",
+  "load": [
+   0.07,
+   0.07,
+   0.08
+  ],
+  "ram_belegt_bytes": 1327800320,
+  "ram_verfuegbar_bytes": 2782453760,
+  "platte_belegt_bytes": 5748977664,
+  "platte_frei_bytes": 122602618880,
+  "pakete_upgradebar": 0,
+  "neustart_noetig": true,
+  "unattended_upgrades": true,
+  "pakete_quellen": {}
+ },
+ "installiert": {
+  "docker": "29.7.2",
+  "containerd": "2.3.3",
+  "compose": "5.5.0",
+  "tailscale": "1.102.3",
+  "serve_ports": [
+   443,
+   8443,
+   8444,
+   8446
+  ]
+ },
+ "firewall": {
+  "art": "iptables",
+  "ufw": null,
+  "familien": {
+   "IPv4": {
+    "INPUT": 7,
+    "DOCKER-USER": 4
+   },
+   "IPv6": {
+    "INPUT": 7,
+    "DOCKER-USER": 4
+   }
+  },
+  "persistent": true,
+  "wie_gespeichert": true,
+  "gespeichert_utc": "2026-09-08T14:52:27Z",
+  "seit_neustart": true
+ },
+ "dienste": [
+  {
+   "name": "Kundenseite",
+   "zweck": "Website-Betreuung: Collector mit PageSpeed und UptimeRobot, Search Console, Anforderungen aus dem Dashboard",
+   "link": "https://host-01.example.ts.net/",
+   "repo": "fernwerk-studio/kundenseite",
+   "checkout": "/srv/kundenseite",
+   "zeilen": [
+    "Berichtsgenerator-Generator läuft im Care-Container mit, Checkout /srv/berichte"
+   ],
+   "container": [
+    {
+     "name": "kundenseite-dashboard-1",
+     "status": "running",
+     "seit_utc": "2026-09-05T12:54:23Z",
+     "bild": "kundenseite:f20a625",
+     "neustarts": 0,
+     "gesund": "healthy"
+    },
+    {
+     "name": "kundenseite-litestream-1",
+     "status": "running",
+     "seit_utc": "2026-08-23T23:10:43Z",
+     "bild": "litestream/litestream@sha256:f085f8bce71a5ad4ce8e28b28ea522de1d9e0d7dd0af3ea5c1bd626d0f341954",
+     "neustarts": 0,
+     "gesund": null
+    }
+   ],
+   "timer": [
+    {
+     "unit": "portal-schnelllauf",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T02:15:00Z",
+     "letzter_utc": "2026-09-08T02:15:01Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-08T03:15:00Z"
+    },
+    {
+     "unit": "portal-volllauf",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T01:30:00Z",
+     "letzter_utc": "2026-09-08T01:58:47Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-09T01:30:00Z"
+    },
+    {
+     "unit": "portal-searchconsole",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T01:00:00Z",
+     "letzter_utc": "2026-09-08T01:00:03Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-09T01:00:00Z"
+    },
+    {
+     "unit": "portal-anforderung",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T02:38:01Z",
+     "letzter_utc": "2026-09-08T02:38:01Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-08T02:40:00Z"
+    }
+   ],
+   "deploy": {
+    "tag": "f20a625",
+    "origin_main": "f20a625",
+    "hinter": 0,
+    "bildrelevant": 0,
+    "gemessen": "2026-09-08T04:05:28+02:00"
+   }
+  },
+  {
+   "name": "Preisbeobachter",
+   "zweck": "Preisbeobachtung, fällige Quellen abrufen",
+   "link": "https://host-01.example.ts.net:8443/",
+   "repo": "fernwerk-studio/preisbeobachter",
+   "checkout": "/srv/preisbeobachter",
+   "zeilen": [],
+   "container": [
+    {
+     "name": "preisbeobachter-preise-1",
+     "status": "running",
+     "seit_utc": "2026-09-02T22:41:25Z",
+     "bild": "preisbeobachter:1394e06",
+     "neustarts": 0,
+     "gesund": "healthy"
+    }
+   ],
+   "timer": [
+    {
+     "unit": "beobachter-lauf",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T02:35:07Z",
+     "letzter_utc": "2026-09-08T02:35:09Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-08T02:40:00Z"
+    }
+   ],
+   "deploy": {
+    "tag": "1394e06",
+    "origin_main": "1394e06",
+    "hinter": 0,
+    "bildrelevant": 0,
+    "gemessen": "2026-09-08T04:05:29+02:00"
+   }
+  },
+  {
+   "name": "gitpuls",
+   "zweck": "Eigene GitHub-Aktivität, Serverstand, fremde Repos nach Sternen",
+   "link": "https://host-01.example.ts.net:8444/",
+   "repo": "fernwerk-studio/gitpuls",
+   "checkout": "/srv/gitpuls",
+   "zeilen": [],
+   "container": [
+    {
+     "name": "gitpuls-gitpuls-1",
+     "status": "running",
+     "seit_utc": "2026-09-08T00:21:24Z",
+     "bild": "gitpuls:18c52b0",
+     "neustarts": 0,
+     "gesund": "healthy"
+    }
+   ],
+   "timer": [
+    {
+     "unit": "gitpuls-sammler",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T02:00:07Z",
+     "letzter_utc": "2026-09-08T02:00:15Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-08T03:00:00Z"
+    },
+    {
+     "unit": "gitpuls-sterne",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T01:15:00Z",
+     "letzter_utc": "2026-09-08T01:16:02Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-09T01:15:00Z"
+    },
+    {
+     "unit": "gitpuls-deploy",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T02:05:27Z",
+     "letzter_utc": "2026-09-08T02:05:31Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-08T03:05:00Z"
+    },
+    {
+     "unit": "gitpuls-server",
+     "status": "fehlt"
+    }
+   ],
+   "deploy": {
+    "tag": "18c52b0",
+    "origin_main": "18c52b0",
+    "hinter": 0,
+    "bildrelevant": 0,
+    "gemessen": "2026-09-08T04:05:31+02:00"
+   }
+  },
+  {
+   "name": "Trainingslog",
+   "zweck": "Wochenlog aus Strava: Rad und Kraft, Verlauf, Intensität",
+   "link": "https://host-01.example.ts.net:8446/",
+   "repo": "fernwerk-studio/trainingslog",
+   "checkout": "/srv/trainingslog",
+   "zeilen": [],
+   "container": [
+    {
+     "name": "trainingslog-trainingslog-1",
+     "status": "running",
+     "seit_utc": "2026-09-08T01:09:16Z",
+     "bild": "trainingslog:49cb74f",
+     "neustarts": 0,
+     "gesund": "healthy"
+    }
+   ],
+   "timer": [
+    {
+     "unit": "trainingslog-lauf",
+     "status": "inactive",
+     "gestartet_utc": "2026-09-08T02:30:07Z",
+     "letzter_utc": "2026-09-08T02:30:10Z",
+     "ergebnis": "success",
+     "exit": 0,
+     "naechster_utc": "2026-09-09T02:30:00Z"
+    }
+   ],
+   "deploy": null
+  }
+ ]
+}

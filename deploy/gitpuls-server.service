@@ -1,0 +1,13 @@
+[Unit]
+Description=gitpuls: Serverstand messen, server.json ins Volume
+After=docker.service
+Requires=docker.service
+
+[Service]
+# Beispielpfad: der Checkout liegt unter /opt/gitpuls; liegt er anderswo, hier und bei EnvironmentFile anpassen.
+Type=oneshot
+# Einstellungen und Zone aus derselben .env wie compose.yaml (10.10.2026, Audit S8 und S9): GITPULS_VOLUME, GITPULS_DIENSTE, TZ und je
+# Skript GITPULS_DEPLOY_ZIEL bzw. GITPULS_SERVER_ZIEL und GITPULS_PRODUKT. Das Minus: ohne .env gelten die Vorgaben der Skripte.
+EnvironmentFile=-/opt/gitpuls/.env
+ExecStart=/opt/gitpuls/tools/server-stand
+TimeoutStartSec=60

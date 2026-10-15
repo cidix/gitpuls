@@ -1,0 +1,11 @@
+[Unit]
+Description=gitpuls Sammler stündlich
+
+[Timer]
+# Festes Raster statt OnUnitActiveSec (driftet mit jeder Laufdauer).
+OnCalendar=hourly
+AccuracySec=1min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

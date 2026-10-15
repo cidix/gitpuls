@@ -1,0 +1,81 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.0.4] - 2026-10-15
+
+### Changed
+
+- A service running a release image with a newer release tag `v*` no longer reads "behind main": the summary
+  sentence, the heading in the action list, the entry, the short form in the project row and its details name the
+  newer version instead, e.g. "Server 1 with newer version v1.0.4". A service running a commit image still reads
+  "behind main".
+- Footer: "gitpuls.com" in the copyright links to https://gitpuls.com, in English and German.
+
+## [1.0.3] - 2026-10-11
+
+### Fixed
+
+- Server zone: the boxes Machine, Installed, Firewall and Updates share one label column again, wide enough for the
+  longest label in English and German, so the values start at the same place in all four boxes. 1.0.1 sized the
+  column per box.
+
+## [1.0.2] - 2026-10-11
+
+### Fixed
+
+- The footer shows the version built into the image. With the `.env` from `.env.example` the quick start showed
+  "Version unbekannt"; `GITPULS_TAG` now only selects the image. An image built from source without the build argument
+  shows `GITPULS_TAG` as before.
+
+## [1.0.1] - 2026-10-11
+
+### Fixed
+
+- Server zone: in the boxes Machine, Installed, Firewall and Updates the label column takes the width of the longest
+  label of its box, with the same distance to the value in every box; a long label such as "Automatische Updates" in
+  the German interface no longer runs into its value.
+
+## [1.0.0] - 2026-10-11
+
+First public release.
+
+### Added
+
+- Server zone: a summary sentence for the host and a list of your services with their last timer run; each service
+  opens to its containers, runs and distance to the default branch.
+- Machine and installed software: load, memory, disk and boot time next to the versions of Docker, Compose, containerd,
+  Tailscale, the system and the kernel.
+- Firewall and updates: rules in INPUT and DOCKER-USER per IP family (iptables), whether they survive a reboot, and
+  pending apt updates including the ones to pull by hand. Every value the host script cannot measure is shown as
+  "not measured" instead of failing.
+- "Needs attention" block: security alerts, failed Actions runs, services behind the default branch, branches waiting
+  on the default branch, Dependabot updates, values that could not be measured, and a warning 14 days before the
+  GitHub token expires.
+- Commit tiles: today against all of yesterday; the last 7 days or this week and the last 30 days or this month against
+  the period before, up to the same point in time.
+- Project list with one row per repository, its commits, a 30-day sparkline and its findings; a row opens to the week,
+  the lines changed and the latest subjects.
+- History of commits per day over 7, 30, 60 or 90 days or since the start, with streaks and records.
+- Ranking of young public repositories that gain stars fastest, over 7, 30 or 90 days.
+- Light and dark theme following the system or chosen by hand, a layout for phones, an English and a German interface
+  and number and date formats per locale; days, weeks and months are counted in your own time zone.
+- Collector inside the container on its own interval, or from the systemd timers in `deploy/`; the image is published
+  for linux/amd64 and linux/arm64 with build provenance.
+
+### Security
+
+- Published on `127.0.0.1` only, allowed host names against DNS rebinding, same-origin check for the refresh button,
+  token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
+  capabilities.
+
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/cidix/gitpuls/compare/v1.0.3...v1.0.4
+[1.0.3]: https://github.com/cidix/gitpuls/compare/v1.0.2...v1.0.3
+[1.0.2]: https://github.com/cidix/gitpuls/compare/v1.0.1...v1.0.2
+[1.0.1]: https://github.com/cidix/gitpuls/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/cidix/gitpuls/releases/tag/v1.0.0

@@ -1,0 +1,83 @@
+# Vorlage: nach compose.yaml kopieren (cp compose.example.yaml compose.yaml), Einstellungen in .env (Vorlage .env.example).
+# Betriebsform eines anderen eigenen Dienstes, dort belegt.
+# Läuft seit 10.10.2026 (Audit S7) auch lokal auf einem Laptop mit Docker und einem Token: Volume, Tokendatei, Port und Takt sind
+# Einstellungen in der .env mit Vorgaben; die eigene Instanz auf dem VPS setzt dort GITPULS_VOLUME=gitpuls-db,
+# GITPULS_TOKENDATEI=/etc/gitpuls/github.env und GITPULS_TAKT_MIN=0 und läuft damit unverändert weiter, external steht in ihrer
+# compose.override.yaml (siehe volumes unten).
+services:
+  gitpuls:
+    # Das öffentliche Image; gibt es den Tag nicht, baut Compose aus dem Quelltext (build). Eine eigene Fassung setzt GITPULS_TAG auf
+    # ihren Commit und baut mit docker compose build.
+    image: ghcr.io/cidix/gitpuls:${GITPULS_TAG:-1.0.4}
+    build: .
+    restart: unless-stopped
+    # Die Vorsilbe 127.0.0.1: IST die Sicherheitsgrenze (Docker publiziert an
+    # UFW vorbei). Davor liegt tailscale serve, kein Funnel.
+    ports: ["127.0.0.1:${GITPULS_PORT:-8789}:8789"]
+    environment:
+      # Zone und Adressen gehören dem Betreiber und sind Pflicht, nicht Vorgabe (Codex-Befund 20.09.2026):
+      # ohne TZ zählten Python und SQLite nach UTC statt nach der Ortszeit, ohne GITPULS_ADRESSEN bliebe die
+      # Seite leer, ohne zu sagen warum. `:?` bricht `docker compose up` mit dieser Meldung ab, statt still
+      # einen fremden Tag zu zeigen. Beide stehen in der .env neben GITPULS_TAG.
+      TZ: ${TZ:?TZ fehlt, IANA-Zonenname erwartet, etwa Europe/Zurich}
+      GITPULS_ADRESSEN: ${GITPULS_ADRESSEN:?GITPULS_ADRESSEN fehlt, Commit-Adressen durch Komma getrennt}
+      # Sprache der Oberfläche, en oder de (25.09.2026). Vorgabe en; ein anderer Wert bricht den Start ab, ?lang= übersteuert je Aufruf.
+      GITPULS_SPRACHE: ${GITPULS_SPRACHE:-en}
+      # Format-Locale für Zahlen, Datum und Uhrzeit (26.09.2026), etwa de-CH; leer heisst Accept-Language, sonst de-DE oder en-US.
+      GITPULS_FORMAT: ${GITPULS_FORMAT:-}
+      # Erlaubte Hosts gegen DNS-Rebinding (10.10.2026), durch Komma, etwa der Tailnet-Name; Loopback gilt immer, Vorgabe nur Loopback.
+      GITPULS_HOSTS: ${GITPULS_HOSTS:-}
+      # Der eigene Stack für die Rangliste fremder Repos, durch Komma getrennt (10.10.2026, Audit S23), Vorgabe leer.
+      GITPULS_STACK: ${GITPULS_STACK:-}
+      # Takt im Container in Minuten (10.10.2026, Audit S7): Sammler so oft, Sternlauf einmal am Tag und nachgeholt, wenn er fehlt.
+      # Die Alternative zu den Host-Timern in deploy/; 0 schaltet ihn ab.
+      GITPULS_TAKT_MIN: ${GITPULS_TAKT_MIN:-60}
+      GITPULS_DB: /data/gitpuls.db
+      # Rückfall für die Fusszeile (26.09.2026, seit v1.0.2): ein Release-Bild zeigt seine eigene Version (GITPULS_VERSION im Bild), ein Bau aus dem
+      # Checkout ohne Build-Argument diesen Tag.
+      GITPULS_TAG: ${GITPULS_TAG:-unbekannt}
+      # WO DER PAT LIEGT — der PFAD, nicht der Wert. Bis zum 08.09.2026 stand
+      # hier ein env_file, und damit lag GITHUB_TOKEN im Klartext in
+      # `docker inspect` und /proc/1/environ: der offene rote Punkt aus dem
+      # Server-Audit vom selben Tag. Die Datei kommt jetzt als :ro-Mount
+      # herein (siehe volumes), nach dem Muster eines anderen eigenen Dienstes.
+      #
+      # Gesetzt heisst erwartet: fehlt die Datei, ist sie unlesbar oder trägt
+      # sie kein GITHUB_TOKEN, bricht der Sammler mit dem Pfad im Text ab —
+      # statt still ohne Token zu laufen.
+      GITPULS_GITHUB_ENV: /etc/gitpuls/github.env
+    volumes:
+      - daten:/data
+      # Die Tokendatei des Hosts, Vorgabe github.env im Projektordner (Vorlage deploy/github.env.beispiel). Der Dienst liest sie als
+      # UID 10001: auf dem VPS 0640 root:10001, mit cap_drop ALL gibt es kein Vorbeikommen an 0600 root. Fehlt sie, bricht der Start
+      # mit dem Pfad ab, statt dass Docker an ihrer Stelle einen leeren Ordner anlegt (create_host_path: false). Der Mountpunkt
+      # /etc/gitpuls steht im Dockerfile — unter read_only kann er zur Laufzeit nicht entstehen.
+      - type: bind
+        source: ${GITPULS_TOKENDATEI:-./github.env}
+        target: /etc/gitpuls/github.env
+        read_only: true
+        bind:
+          create_host_path: false
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8789/gesund',timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  daten:
+    # Ein benanntes Volume statt eines Ordners im Projekt: Docker übernimmt beim ersten Einhängen den Besitzer 10001 aus dem Bild,
+    # ein Ordner auf dem Host gehörte root oder dem Nutzer, und der Dienst könnte nicht schreiben. Vorgabe gitpuls-daten, von Compose
+    # angelegt. Die eigene Instanz: gitpuls-db, external gegen ein getipptes `down -v`. Die Datenbank ist aus GitHub vollständig
+    # nachbaubar (python -m app.sammler --alles), darum kein Litestream.
+    name: ${GITPULS_VOLUME:-gitpuls-daten}
+    # Kein external hier (11.10.2026, Probe Podman): podman-compose prüft den Wert auf Wahrheit, der interpolierte Text «false» ist wahr
+    # und `up` bricht mit «External volume does not exist» ab; Docker Compose lehnt einen leeren Wert als «invalid boolean» ab. Kein
+    # interpolierter Wert taugt für beide. Ein bestehendes Volume gegen `down -v` schützt eine compose.override.yaml, die beide laden.

@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible bug. Reports are welcome but not guaranteed a response.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        gitpuls is published as is, without support. Do not post tokens, commit messages of private repos or anything from your server you would not publish. Security problems: use private vulnerability reporting instead.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Image tag or commit you run.
+    validations:
+      required: true
+  - type: textarea
+    id: was
+    attributes:
+      label: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: schritte
+    attributes:
+      label: Steps to reproduce
+      description: Prefer the demo data (demo/demodaten.py) over your own data.
+    validations:
+      required: true
+  - type: textarea
+    id: umgebung
+    attributes:
+      label: Environment
+      description: Docker Engine version, host OS, browser.

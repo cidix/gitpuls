@@ -1,0 +1,667 @@
+/* gitpuls, neu geschrieben am 08.09.2026 nach einer eigenen Vorlage. Tokens aus tokens.css, nichts erfunden.
+   Zwei Zonen mit Rahmen, beide auf --bg, Kacheln darin in --card (heller als der Rahmen, in beiden Modi;
+   Serverzone seit 11.09.2026 umgekehrt, vorher Rahmen --card und Kacheln --bg), dazwischen --s8.
+   Farben: Blau (--eis) für Links, Reiter und tragende Zahlen; Mint (--mint) für «läuft, letzter Lauf sauber»;
+   --glut nur für echte Abweichung. Commit-Zahlen und Differenzen ohne Rot und Grün.
+   Schriftstaffel h1 1.75 / h2 1.25 / Befundsatz 1.35 / Text .85 / Beschriftung .75 rem, Zahlen 2 rem.
+   Dichte einer Informationsseite: enge Zeilen, drei Spalten, kein Bento-Luftraum.
+   Elfter Umbau: Serverzone als zwei Kacheln (Lage links, Dienste rechts), Dienstzeilen in der Dichte von
+   den Listen der Vorlage (.akr: .85rem, .45rem Innenabstand; .kliste: .35rem; gemessen 08.09.2026 in Chrome auf :8446),
+   Fusszeile dreispaltig mit Beschriftung links und Wert rechts.
+   Dreizehnter Umbau: Karten vierspaltig und auf Zahl, Bezug und Kurve verdichtet, alles Weitere im
+   Aufklappdetail; ruhende Repos als eine Zeile im Fliesstext statt eines eigenen Blocks.
+   Zwölfter Umbau: jede Kurve trägt Achse und Raster nach der Bauform einer laufenden eigenen Vorlage
+   (.chart / .ylab / .plot / .xlab, am 08.09.2026 per curl von Port 8446 gelesen). Das SVG wird
+   mit preserveAspectRatio="none" gestreckt, deshalb steht die Beschriftung als HTML daneben. */
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--txt); font-family: var(--font); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+body { padding: var(--s5) var(--s4) var(--s8); max-width: 84rem; margin: 0 auto; }
+main { display: grid; gap: var(--s8); }
+main > *, .zone > *, .card > *, .tile > * { min-width: 0; }
+a { color: var(--eis); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--eis); outline-offset: 2px; border-radius: 6px; }
+h1, h2, h3 { margin: 0; line-height: 1.05; }
+h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -.03em; }
+/* Der Titel ist ein Link auf / (seit 11.09.2026) und sieht aus wie vorher: Textfarbe, keine Unterstreichung, auch im
+   Hover; den Fokusrahmen für die Tastatur trägt a:focus-visible oben. */
+h1 a, h1 a:hover { color: inherit; text-decoration: none; }
+header { margin-bottom: var(--s5); display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.1; }
+.lbl { font-size: .75rem; text-transform: uppercase; letter-spacing: .02em; line-height: 1.3; color: var(--lbl); }
+.titel .lbl, .kz .lbl, .stamp.lbl { text-transform: none; }
+.sub { font-size: .75rem; letter-spacing: .01em; line-height: 1.4; color: var(--lbl); margin: var(--s2) 0 0; }
+.muted { color: var(--lbl); }
+p.muted { font-size: .85rem; margin: var(--s3) 0 0; }
+.glut { color: var(--glut); }
+.blockfehler { font-size: .85rem; margin: var(--s2) 0; }
+.blau { color: var(--eis); }
+.big { font-size: 2rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.delta { font-size: .9rem; letter-spacing: -.005em; line-height: 1.35; color: var(--sec); font-variant-numeric: tabular-nums; }
+/* Zonen */
+.zone { border-radius: var(--r); padding: var(--s5); border: 1px solid var(--border); }
+.zone.server { background: var(--bg); }
+.zone.github { background: var(--bg); display: grid; gap: var(--s4); }
+.zonenkopf { display: flex; align-items: center; justify-content: space-between; gap: var(--s2) var(--s4); flex-wrap: wrap; padding-bottom: var(--s3); border-bottom: 1px solid var(--line); }
+.zone.server .zonenkopf h2::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--mint); margin-right: .55rem; vertical-align: .05em; }
+.zone.github .zonenkopf h2::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--eis); margin-right: .55rem; vertical-align: .05em; }
+.stand, .stamp { font-size: .75rem; letter-spacing: .01em; color: var(--lbl); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.stamp { display: grid; text-align: right; }
+.stamp span:empty { display: none; }
+#laufinfo { color: var(--txt); }
+.aktual { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; justify-content: flex-end; }
+.btn { background: var(--card); border: 1px solid var(--border); color: var(--txt); font: inherit; font-weight: 600; padding: .6rem 1.1rem; min-height: 36px; border-radius: 999px; cursor: pointer; }
+.btn.lauf { height: 46px; min-height: 44px; padding: 0 1rem; border-color: var(--line); display: inline-flex; align-items: center; gap: var(--s2); font-size: .85rem; letter-spacing: .01em; }
+.btn.lauf svg { width: 16px; height: 16px; flex: none; fill: currentColor; }
+.btn.lauf.laeuft svg { animation: dreh 1s linear infinite; }
+.btn[disabled] { color: var(--sec); cursor: default; }
+button:active { transform: scale(.985); }
+@keyframes dreh { to { transform: rotate(360deg); } }
+/* Kopf der GitHub-Zone (13.09.2026): der Lagesatz als eigene Zeile über die volle Breite in seiner Grösse .f, darunter die
+   Kennzahlen als eine Reihe in denselben drei Spalten wie die Kacheln, darunter je Zweig eine gedämpfte Zeile. Ohne Befund
+   endet der Kopf nach der Reihe. Die Serverkachel .tile.lage überschreibt Anzeige, Abstand und Innenabstand. */
+/* Abstand Lagesatz zu Reihe (25.09.2026 von 12 auf 24 px, seit 26.09.2026 32 px). Eine Variable für beide Zonen (--lage-abstand in
+   tokens.css): GitHub-Kopf und Serverkachel .tile.lage lesen dieselbe, damit sie nicht wieder auseinanderlaufen (vorher Server 24 px). */
+.lage { display: grid; gap: var(--lage-abstand); padding: var(--s4) 0; }
+.f { color: var(--txt); font-size: 1.35rem; line-height: 1.25; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+/* Jeder Satz ein unteilbares Stück (26.09.2026): passt er auf eine Zeile, bricht er nie um, die Umbrüche fallen zwischen Sätze; ist er länger
+   als eine Zeile, wird er so breit wie die Zeile und bricht in sich um (dort halten die geschützten Leerzeichen aus geschuetzt()). */
+.f .satz { display: inline-block; max-width: 100%; }
+/* Seit 26.09.2026 höchstens bis zur Mitte der Zone (50 % ihrer Inhaltsbreite), vorher bis zur Kante der zweiten Kachel; untereinander volle
+   Breite. In der Serverzone steht der Satz in der linken von zwei Kacheln und endet damit ohnehin vor der Mitte. text-wrap bleibt hier
+   balance, am Bild entschieden (26.09.2026, Stresssatz mit langem Repo-Namen, en, 1280 px): pretty ergab Zeilen von 237, 591 und 134 px und
+   liess «need attention.» allein stehen, balance 237, 417 und 448 px mit jeder Zeile an einem Satzende. Dass kein Satz am Zeilenende
+   beginnt, sichert geschuetzt() in app/web.py über geschützte Leerzeichen, nicht der Umbruchmodus. */
+@media (min-width: 821px) { .zone.github > .lage > .f, .zone.github > .lage > .stapel { max-width: 50%; } }
+.befund { display: grid; gap: var(--s2); flex: 0 1 auto; }
+/* Grosse Lagezahl über gedämpfter Beschriftung (Serverzone, Kopf der GitHub-Zone). Zwischen der Unterlänge der Zahl (das g in
+   «Tage») und der Oberkante der Beschriftung liegen mindestens 8 px, gemessen bei 1280 und 430 px (25.09.2026); vorher 2 px,
+   und das g stiess fast an die Zeile darunter. */
+.n { display: grid; gap: .75rem; align-content: start; min-width: 0; }
+.n b { display: block; font-size: 2rem; font-weight: 700; letter-spacing: -.035em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--eis); white-space: nowrap; }
+.n > span { font-size: .75rem; letter-spacing: .01em; color: var(--lbl); line-height: 1.3; }
+/* Kopfspalte 3: Serie und Repos als zwei gleich grosse Zahlen, seit 26.09.2026 untereinander (vorher nebeneinander, die Lücke zur
+   zweiten Spalte wirkte zufällig), linksbündig auf der Kante der dritten Kachel; jede gebaut wie Spalte 2 (.n). Der Abstand dazwischen
+   bringt die Spalte auf die Höhe der Ringspalte. */
+.npaar { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s5); align-content: start; min-width: 0; }
+/* Kopfreihe (25.09.2026): drei Spalten auf dem Raster der Kennzahl-Kacheln (.tiles3, dieselbe Regel), alle gleich gebaut (.n:
+   oben das Sichtbare, darunter eine gedämpfte Zeile): Wochenring, Serie, wartende Zweige; untereinander in derselben Reihenfolge,
+   wo die Kacheln untereinander stehen. Oberkanten gleich; die Unterzeilen liegen nicht auf einer Grundlinie, weil der Ring 84 px
+   hoch ist und die Zahl 32 px, gemessen im README. */
+.lage .nums { align-items: start; }   /* Oberkanten gleich, jede Beschriftung direkt unter ihrem Sichtbaren */
+/* Ring 112 px seit 26.09.2026 (vorher 84, ein Drittel grösser); die Legende daneben wächst mit: Schrift .8 auf .9rem, Zeilenabstand
+   .25 auf .4rem, Farbfleck .7 auf .8rem, Abstand zum Ring 16 auf 20 px. */
+/* Ring und Legende als Gruppe links in der Spalte, so breit wie ihr Inhalt (26.09.2026): vorher streckte sich die Legende auf die volle
+   Spaltenbreite, Zahl und Prozent klebten an der Kante zur Spalte Handlungsbedarf, zwischen Name und Zahl stand eine grosse Lücke. Die
+   Gruppe endet mindestens --s4 vor der Spaltenkante, mit dem Spaltenabstand also mindestens 32 px vor Handlungsbedarf; wird es eng,
+   kürzt der Name (Ellipse, voller Name im title). */
+/* Abstand Ringkante zum ersten Farbfeld 40 px (26.09.2026, zweiter Lauf; vorher 20 px und gequetscht). */
+.ringbox { display: flex; align-items: center; gap: 2.5rem; min-width: 0; justify-self: start; max-width: 100%; }
+/* Seit 02.10.2026 steht die Gruppe waagrecht mittig in der Spalte, also mittig über der Kachel darunter, in jeder Breite: eine Spur
+   so breit wie die Gruppe, in der Spalte zentriert; die Beschriftung beginnt in derselben Spur und rückt mit dem Ring. Der Innenrand
+   --s4 auf beiden Seiten hält mit dem Spaltenabstand die 32 px zu Handlungsbedarf; wird es enger, kürzt der Name. */
+.n.ring-spalte { grid-template-columns: minmax(0, max-content); justify-content: center; padding-inline: var(--s4); }
+/* Spalten Handlungsbedarf und Serie/Repos beginnen auf der Innenkante der Kachel darunter (02.10.2026), bündig mit deren grosser Zahl:
+   derselbe Innenabstand wie .card (--s5); der Rahmen der Kachel (1 px) liegt in der Toleranz. Gilt auch einspaltig. */
+.n.befunde, .npaar { padding-inline-start: var(--s5); }
+/* Zwischen der einspaltigen Ansicht und 1100 px (02.10.2026): neben dem Ring blieb für die Namen der Legende kein Platz (bei 950 px
+   0 px). Dort steht die Legende unter dem Ring, beide mittig, die Beschriftung mittig darunter; Abstände aus .n (.75rem). */
+@media (min-width: 821px) and (max-width: 1099px) {
+  .ringbox { flex-direction: column; gap: .75rem; justify-self: center; }
+  .n.ring-spalte { justify-items: center; }
+}
+.ring { display: block; flex: none; width: 112px; height: 112px; }
+/* Segmente in der Akzentfarbe, abgestuft nur über die Deckkraft; der Rest in der gedämpften Farbe. Kein Farbwechsel. */
+.rseg { fill: none; stroke-width: 6; }
+.s1, .s2, .s3 { stroke: var(--eis); } .s1 { stroke-opacity: 1; } .s2 { stroke-opacity: .67; } .s3 { stroke-opacity: .33; }
+.srest { stroke: var(--lbl); }
+.rlegende { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: .8rem minmax(0, max-content) auto auto; column-gap: var(--s2);
+  row-gap: .4rem; align-items: center; font-size: .9rem; line-height: 1.35; color: var(--txt); min-width: 0; flex: 0 1 auto; }
+.rlegende li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
+.rlegende i.sw { width: .8rem; height: .8rem; border-radius: 2px; background: var(--eis); }
+.rlegende i.sw.s1 { opacity: 1; } .rlegende i.sw.s2 { opacity: .67; } .rlegende i.sw.s3 { opacity: .33; } .rlegende i.sw.srest { background: var(--lbl); }
+.rname { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Name zu Zahl 16 px (26.09.2026, zweiter Lauf; vorher 8 px, «6 weitere 73» klebte): zum Spaltenabstand --s2 kommen 8 px am Namen dazu. */
+.rlegende .rname { margin-right: var(--s2); }
+.ranteil { color: var(--lbl); font-variant-numeric: tabular-nums; text-align: right; }
+/* Handlungsbedarf als dritte Spalte (25.09.2026): grosse Zahl, Unterzeile, bei mehreren Arten je Art eine gedämpfte Zeile als Sprunglink
+   in den Block Handlungsbedarf; nicht messbare Arten stehen einmal gedämpft am Schluss («CI: Token ohne Leserecht Actions»). */
+.bhinweis { margin: 0; font-size: .75rem; line-height: 1.3; color: var(--lbl); }
+/* Serverzone: Lage und Dienste (Test 27.09.2026) ohne eigene Fläche direkt auf dem Zonengrund wie der Kopf der GitHub-Zone, auf
+   denselben Spaltenkanten wie die Fussblöcke darunter: dieselbe Spaltenregel wie .fuss, damit beide bei derselben Breite umbrechen
+   (vorher 1fr 1fr bis 820 px, .fuss brach schon bei rund 920 px auf eine Spalte). */
+.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr)); gap: var(--s4); padding-top: var(--s4); }
+.zone.server .tile { min-width: 0; }
+.tile.lage { display: grid; gap: var(--lage-abstand); align-content: start; }
+/* In der Serverkachel kann der Satz mit vielen Abweichungen über sechs Zeilen laufen; dort balanciert Chrome nicht mehr (gemessen
+   25.09.2026: 7 Zeilen, «gelaufen.» allein in der letzten). pretty verhindert das einzelne Wort bei jeder Länge. */
+.tile.lage .f { font-size: 1.25rem; text-wrap: pretty; }
+/* Dienste: eine Zeile je Dienst, Detail darunter */
+.tile.dienste { display: grid; align-content: start; padding-top: var(--s1); padding-bottom: var(--s1); }
+details.dienst { margin: 0; border-top: 1px solid var(--line); }
+details.dienst:first-child { border-top: none; }
+details.dienst summary { display: grid; grid-template-columns: 1rem 7rem minmax(0, 1fr); gap: var(--s2); align-items: baseline; padding: .4rem 0; font-size: .85rem; line-height: 1.45; cursor: pointer; list-style: none; color: var(--txt); }
+details.dienst summary::-webkit-details-marker { display: none; }
+details.dienst summary::before { content: none; }
+details.dienst summary a { font-weight: 600; }
+.punkt { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lbl); align-self: center; }
+.punkt.mint { background: var(--mint); }
+.punkt.glut { background: var(--glut); }
+.aussage { color: var(--sec); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.aussage::after { content: "▾"; color: var(--lbl); margin-left: .5rem; font-size: .75rem; }
+details.dienst[open] .aussage::after { content: "▴"; }
+.ddetail { display: grid; gap: .25rem; padding: 0 0 var(--s3) calc(1rem + var(--s2)); font-size: .8rem; color: var(--sec); font-variant-numeric: tabular-nums; }
+.dz { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: var(--s2); }
+.dk { color: var(--lbl); font-size: .75rem; letter-spacing: .01em; padding-top: .1rem; }
+/* Dieselbe Ordnung wie in den Fussblöcken seit f9caaee (.mz): Beschriftungsspalte gedämpft, Wertspalte in
+   Textfarbe. Vorher lag beides auf --sec des Aufklappdetails, und der Wert las sich so leise wie sein Etikett.
+   Kindkombinator, nicht Nachfahre: als `.dz span:last-child` schlüge die Regel den verschachtelten Glut-Span
+   im Wert mit höherer Spezifität, und «Container … exited» stünde in Textfarbe statt in Warnfarbe. Trägt der Wert selbst
+   .glut (fehlender Timer), nimmt :not(.glut) ihn aus (10.10.2026); vorher schlug die Regel .glut und die Zeile stand in Textfarbe. */
+.dz > span:last-child:not(.glut) { color: var(--txt); }
+/* Auslastung (20.09.2026, in drei Schritten): eigene Kachel mit Heartbeat-Linien, dann Mikro-Sparkline in der
+   Zeile, dann dieser Füllbalken. Ein 24-Stunden-Verlauf beantwortet bei zwei über den Tag gleichbleibenden Werten
+   die falsche Frage; gefragt ist, wie voll es JETZT ist, und das zeigt ein Anteil. Der Balken steht direkt hinter
+   dem Text, Spur für beide Zeilen gleich breit (sonst sind die Anteile nicht vergleichbar), 4 px hoch mit dem
+   kleinsten Radius der Staffel (2px). Spur in --track, Füllung in --lbl: einfarbig, nur über die Helligkeit
+   abgesetzt, kein Umschlagen nach Höhe und kein Rot — das wäre eine Bewertung statt einer Angabe. */
+.mz.anteil > span:last-child { display: flex; align-items: center; gap: var(--s3); }
+.fbalken { flex: none; width: 5rem; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+/* Seit 25.09.2026 (Entscheid Cédric, ersetzt «die Balken im Block Maschine bleiben gedämpft») trägt jede Füllung die
+   Akzentfarbe: Heute-Kachel wie Arbeitsspeicher und Platte. Einfarbig, kein Wechsel nach Höhe. */
+.fbalken i { display: block; height: 100%; border-radius: 2px; background: var(--eis); }
+/* Ruhige Fusszeile: drei Spalten, je Angabe eine Zeile, Beschriftung links, Wert rechts */
+/* Zwei Spalten, seit die vier Blöcke Kacheln sind. Drei trugen rechnerisch, aber nur knapp: mit dem
+   Innenabstand der Kachel blieben je Block 213 px für den Wert, der breiteste braucht 209 px. Vier
+   Blöcke in drei Spalten lassen ausserdem einen allein auf der zweiten Zeile. Bei zwei Spalten stehen
+   414 px bereit, die Höhe bleibt bei zwei Zeilen. min(26rem, 100%) klemmt die Mindestbreite an den
+   Container: ohne das erzwang die Spur bei 430 px 416 px auf 357 px Platz, und die Seite scrollte
+   seitwärts. */
+.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr)); gap: var(--s4); }
+/* Wie die .card der Vorlage gegen die Zonenfläche (Lage und Dienste darüber stehen seit 27.09.2026 ohne Fläche):
+   eigene Fläche, Rand, Radius, Innenabstand. Im Raster stehen sie damit von selbst auf einer
+   Grundlinie und sind gleich hoch. */
+.meta { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: var(--s4);
+        font-size: .8rem; letter-spacing: .01em; color: var(--lbl); display: grid; gap: .2rem; line-height: 1.4; align-content: start; font-variant-numeric: tabular-nums; }
+.meta b { color: var(--txt); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .02em; margin-bottom: .2rem; }
+/* Feste Beschriftungsspalte und linksbündige Werte statt rechtsbündig. Belegt an den gemessenen
+   Zeilenlängen: die Werte reichen von 28 px ("5.5.1") bis 286 px, ein Zehnfaches. Rechtsbündig lag ein
+   kurzer Wert bis zu 270 px von seiner Beschriftung entfernt, der Bezug zwischen beiden riss. Links
+   beginnen alle Werte auf derselben Kante, und der breiteste passt in eine Zeile. */
+.mz { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: var(--s2); }
+.mz .mk { color: var(--lbl); white-space: nowrap; }
+/* Kindkombinator, nicht Nachfahre: als `.mz span:last-child` traf die Regel auch den verschachtelten
+   Glut-Span im Wert und schlug ihn mit höherer Spezifität; "DOCKER-USER leer" stand dann in Grau.
+   Gewichtung seit 11.09.2026: Titel und Wert in Textfarbe, nur die Beschriftung bleibt --lbl; die
+   Warnfarbe im Wert hat Vorrang. Die Aufklappdetails (.dz/.dk, .chips, .commits) nutzen andere Klassen. */
+.mz > span:last-child { color: var(--txt); overflow-wrap: anywhere; }
+/* Eine gemeinsame Beschriftungsspalte für alle vier Kästen der Serverzone (11.10.2026, v1.0.3), damit die Werte in Maschine, Installiert,
+   Firewall und Updates an derselben Stelle beginnen; ersetzt die Spalte je Kasten aus v1.0.1. 9rem statt 8rem: das längste Label in de und
+   en, «Automatische Updates», misst in Chrome 138.3 px in San Francisco und 131.3 px in Helvetica und Arial. Der Abstand zum Wert bleibt --s2,
+   und die Regel gilt auch schmal (schlägt die auto-Regel unten). Ein längeres Label aus den Messdaten (Paketquelle) bricht in der Spalte um,
+   statt in den Wert zu laufen. */
+.meta > .mz { grid-template-columns: 9rem minmax(0, 1fr); }
+.meta > .mz > .mk { white-space: normal; overflow-wrap: anywhere; }
+/* Karten in der GitHub-Zone */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: var(--s5); }
+.titel { font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2) var(--s4); flex-wrap: wrap; }
+/* Eine Regel für Kacheln und Kopfreihe: dieselben Spalten und Abstände, damit die Kanten übereinander liegen (25.09.2026). */
+.tiles3, .nums, .hraster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s4); }
+.tile { display: flex; flex-direction: column; gap: var(--s2); }
+.tile .wert { display: grid; gap: var(--s1); }
+.tile .wert .big { color: var(--eis); }
+.tile .sub { margin-top: auto; }
+/* Rangfolge nach dem Kennzahlblock der Vorlage (.big / .lbl / .delta / .sub, am 08.09.2026 per curl gelesen).
+   Vorher gemessen: Bezeichnung 12 px in --lbl, Vergleichszeile 14.4 px in --sec, also war die Zeile
+   unter der Überschrift grösser und heller als die Überschrift. Jetzt drei Ränge: Zahl, Bezeichnung,
+   und die zwei Bezugszeilen gemeinsam leiser und kleiner. */
+/* Der Kacheltitel trägt die volle Textfarbe, nicht die gedämpfte: im Dunkelmodus stand er sonst
+   leiser da als die Fliesstexte darunter, obwohl er die Kachel benennt. */
+.tile.kpi .lbl { font-weight: 600; letter-spacing: .04em; color: var(--txt); }
+/* Heute-Kachel (seit 25.09.2026): die Aufteilung des Tages je Repo statt der Commitliste. Eine Zeile ist ein Link auf die
+   Projektzeile: Name, Zahl, Anteilbalken gegen das grösste Repo des Tages (.fbalken, einfarbig), gedämpft «bis HH:MM».
+   Subgrid: die Spalten gelten für alle Zeilen, der Name ist so breit wie der längste, höchstens 9rem, die Balkenspur
+   nimmt den Rest und ist deshalb in allen Zeilen gleich lang, sonst liessen sich die Anteile nicht vergleichen. */
+.heute { list-style: none; margin: var(--s3) 0 0; padding: 0; display: grid; grid-template-columns: fit-content(9rem) auto minmax(2rem, 1fr) auto;
+  column-gap: var(--s3); row-gap: .2rem; font-size: .8rem; line-height: 1.4; color: var(--txt); }
+.heute li, .heute li > a { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
+.heute li > a { color: var(--txt); text-decoration: none; }
+.heute li > a:hover .hrepo { text-decoration: underline; }
+.hrepo { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hzahl, .rzahl { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; text-align: right; }
+.heute .fbalken { width: auto; }
+.heute .uhr { font-size: .72rem; color: var(--lbl); font-variant-numeric: tabular-nums; }
+.heute-leer, .heute-rest { margin: var(--s3) 0 0; font-size: .8rem; line-height: 1.4; color: var(--lbl); }
+/* Die Kopfzeile der Aufteilung («Heute in 5 Repos») steht seit 26.09.2026 als Metazeile in .kmeta (.delta.bezug.heute-kopf), die
+   Liste beginnt direkt unter der Gruppe im Kachelabstand. */
+.tile.kpi .kmeta + .heute { margin-top: 0; }
+/* Die Restzeile steht im Abstand eines Eintrags unter der Liste (.2rem): die Kachel setzt zwischen Liste und Restzeile ihren
+   Abstand --s2, der wird abgezogen. Sonst kostete sie 8 px mehr, als heute_zeilen rechnet (gemessen 13.09.2026: 9.4 statt 17.4 px). */
+.heute-rest { margin-top: calc(.2rem - var(--s2)); }
+/* Nebeneinander bestimmt die Kachelhöhe den Platz (heute_zeilen): der achte Eintrag entfällt, die Restzeile steht. Untereinander
+   wächst die Kachel, dort stehen bis zu acht Einträge ohne Restzeile. Breakpoint wie .tiles3. */
+.heute li.nur-schmal { display: none; }
+/* «und N weitere Repos» klappt seit 04.10.2026 auf (details.gruppe wie «Ohne Commits diese Woche», ohne eigenen Inhalt): offen zeigt
+   es die übrigen Zeilen in derselben Liste, damit sie auf denselben Spalten stehen. */
+.heute:has(+ details.heute-rest[open]) li.nur-schmal { display: grid; }
+.heute-rest > summary { color: inherit; }   /* die Restzeile behält die Farbe von .heute-rest, nicht --sec der allgemeinen summary */
+/* Jüngste Commits unter der Aufteilung (25.09.2026): 12 px abgesetzt (die Kachel setzt --s2 zwischen ihre Kinder, der Rest
+   kommt als margin), eine gedämpfte Zeile «Zuletzt», dann die Einträge im Raster der Aufteilung: Uhrzeit und Repo gedämpft, der
+   Betreff in Textfarbe mit Ellipse. Nebeneinander so viele, wie heute_commit_plaetze rechnet, untereinander höchstens fünf. */
+.heute-zuletzt { margin-top: calc(12px - var(--s2)); display: grid; gap: .2rem; min-width: 0; }
+.heute-zuletzt > p { margin: 0; font-size: .8rem; line-height: 1.4; color: var(--lbl); }
+.hcommits { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto fit-content(7rem) minmax(0, 1fr);
+  column-gap: var(--s3); row-gap: .2rem; font-size: .8rem; line-height: 1.4; color: var(--txt); min-width: 0; }
+.hcommits li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: baseline; min-width: 0; }
+.hzeit { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; color: var(--lbl); font-variant-numeric: tabular-nums; }
+.hcrepo { color: var(--lbl); }
+.hcrepo, .hcbetreff { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hcommits li.nur-schmal, .heute-zuletzt.nur-schmal { display: none; }
+@media (max-width: 820px) { .heute li.nur-schmal { display: grid; } .heute-rest { display: none; } }
+@media (max-width: 820px) { .hcommits li.nur-breit { display: none; } .hcommits li.nur-schmal { display: grid; } .heute-zuletzt.nur-schmal { display: grid; } }
+/* Leerzustand: der Bereich unter der Vergleichszeile, ab derselben Oberkante wie die Liste, nimmt die Resthöhe der Kachel
+   auf; der Satz steht darin senkrecht mittig und links. Die Liste bleibt oben bündig (seit 13.09.2026). */
+.tile.kpi .heute-leer { flex: 1; display: flex; align-items: center; }
+.tile.kpi .delta, .tile.kpi .delta.bezug, .projekte .pkopf { font-size: .75rem; line-height: 1.45; color: var(--lbl); }
+/* Der Vergleichswert in der Vergleichszeile: 25.09.2026 in voller Textfarbe, seit 26.09.2026 auf Cédrics Wunsch in Akzentfarbe (ändert
+   bewusst den Entscheid vom 20.09.2026, Akzent nur für den laufenden Wert). Beschriftung und Prozent bleiben gedämpft. */
+.tile.kpi .delta .vwert { color: var(--eis); }
+/* Zwei Gruppen je Kachel (26.09.2026): oben Zahl, Titel und Vergleichszeile (.wert, 4 px dazwischen), darunter mit 16 px Abstand die
+   Metazeilen (.kmeta). Die Gruppe hält zwei Zeilen Höhe, auch in der Heute- und der 30-Tage-Kachel mit einer Zeile: gleicher Aufbau in
+   allen drei, und Kurven und Liste beginnen auf einer Linie. */
+.kmeta { display: grid; gap: 0; align-content: start; margin-top: var(--s2); min-height: calc(2 * .75rem * 1.45); min-width: 0; }
+/* Codezeilen «+45'997 / −11'300 Zeilen»: das Plus trägt die Akzentfarbe, das Minus bleibt gedämpft; kein Rot, kein Grün. */
+.zplus { color: var(--eis); }
+.zminus { color: var(--lbl); }
+/* Die Codezeile der Wochenkachel nennt seit dem 25.09.2026 nur die laufende Woche («40'269 Zeilen dazu, 9'504 entfernt»), die Vorwoche
+   steht im title. Sie bleibt einzeilig, auch schmal: sonst hinge die Kachelhöhe und mit ihr der Platz der Heute-Kachel (heute_zeilen) an
+   der Länge einer Zahl. Vorher vier Zahlen, die mit echten Werten auf zwei Zeilen umbrachen, und fest zwei Zeilen Höhe. */
+.tile.kpi .delta.zeilen { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Metazeile der Wochen- und der 30-Tage-Kachel (26.09.2026): zwei kurze Paare «3/6 aktive Tage · 9 Repos», Wert in Textfarbe, Beschriftung
+   gedämpft, einzeilig wie die Codezeile; der volle Satz steht im title. */
+.tile.kpi .delta.paare { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.kpi .delta .kwert, .projekte .kwert { color: var(--txt); }
+/* Grafiken nach einer laufenden eigenen Vorlage (Port 8446, am 08.09.2026 per curl gelesen): y-Achse und
+   x-Enden als HTML neben dem SVG, waagrechtes Raster als <line> darin. Im SVG steht weder Schrift
+   noch ein Kreis, preserveAspectRatio="none" streckt es auf die Breite und würde beides verzerren. */
+.chart { display: flex; gap: var(--s2); margin-top: var(--s3); }
+.ylab { position: relative; width: 2.4rem; flex: none; font-size: .7rem; letter-spacing: .02em; color: var(--lbl); font-variant-numeric: tabular-nums; }
+/* Gemessen: das Kästchen sitzt auf 0.1 px genau auf seiner Rasterlinie, aber die Ziffernmitte liegt
+   0.55 px darunter, weil der Zeilenkasten (16.24 px) höher ist als die Ziffern und diese über der
+   Grundlinie stehen. Der Ausgleich in em bleibt bei jeder Schriftgrösse richtig. */
+.ylab span { position: absolute; right: 0; transform: translateY(calc(-50% - .049em)); }
+.plot { flex: 1; min-width: 0; position: relative; }
+.plot svg { display: block; width: 100%; overflow: visible; }
+.zf { position: relative; }
+.chart.gross .ylab, .chart.gross .plot svg { height: 13rem; }
+/* Abstand zur Zeichenfläche wie in den Karten (4 px statt 8) und die Spalte von 2.4 auf 1.6 rem:
+   gemessen stehen dort höchstens drei Ziffern, "300" braucht 19 px von 38. */
+.chart.klein { gap: var(--s1); }
+.chart.klein .ylab { width: 1.6rem; }
+.chart.klein .ylab, .chart.klein .plot svg { height: 6rem; }
+/* Detailkurve der Projektzeile: 6rem, das 4/3-Fache der 4.5rem (72 px) davor, gemessen 25.09.2026. */
+.chart.mini .ylab, .chart.mini .plot svg { height: 6rem; }
+.plot .grid line { stroke: var(--raster); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.plot .flaeche { fill: var(--flaeche); stroke: none; }
+/* Farblogik der Grafiken (20.09.2026), ausnahmslos: die Reihe des LAUFENDEN Zeitraums trägt die Akzentfarbe als
+   volle Linie, jede Vergleichs- und Bezugsreihe ist gestrichelt in der Beschriftungsfarbe. Vorher war es umgekehrt
+   (laufend in Textfarbe, Vergleich im Akzent), und das kehrte die Bedeutung der Seite um: die Kennzahlen stehen
+   selbst in Akzentfarbe, also gehört der Akzent dem Wert von heute und nicht dem von gestern. Die Fläche unter der
+   laufenden Linie bleibt --flaeche, ein gedämpfter Grauton: ein blauer Verlauf wäre eine zweite Aussage. */
+.plot .l { fill: none; stroke: var(--eis); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* Segment zu einer angebrochenen Woche (seit 13.09.2026): gestrichelt in Beschriftungsfarbe, ohne Fläche; anders gestrichelt
+   als die blaue Mittellinie .hz, damit beide nicht verwechselt werden. */
+.plot .l.teil { stroke: var(--lbl); stroke-dasharray: 2 5; }
+/* Die laufende Woche der Detailkurve (25.09.2026): Akzentfarbe wie jeder laufende Wert (Entscheid 20.09.2026), gestrichelt, weil
+   angebrochen; am aktuellen Wert ein Punkt als HTML neben dem gestreckten SVG. */
+.plot .l.teil.jetzt { stroke: var(--eis); }
+.pjetzt { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--eis); transform: translate(-50%, -50%); pointer-events: none; }
+/* fill: none, seit die Vergleichsreihe ein Pfad ist: ein Pfad ohne Angabe füllt sich schwarz, eine Linie nicht. */
+.plot .hz { fill: none; stroke: var(--lbl); stroke-width: 1.25; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+/* Balken für Commits je Periode (27.09.2026, Rückblick und Detailkurve) in der Form der Mikro-Balken: gedämpft, der laufende Tag in
+   Akzentfarbe, eine angebrochene Woche nur als Umriss in Akzentfarbe, leer als Grundstrich (bei einer angebrochenen in Akzentfarbe). */
+.plot .b { fill: var(--lbl); stroke: none; }
+/* Gleitender 7-Tage-Durchschnitt über den Tagesbalken (30.09.2026): voll in Textfarbe, hebt sich von den gedämpften Balken ab. */
+.plot .schnitt { fill: none; stroke: var(--txt); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* Tagesmittel der Vorwoche als waagrechte Referenz (Fenster Woche, 30.09.2026) und die laufende Periode heller mit title «läuft noch». */
+.plot .schnitt.ref { stroke-dasharray: 5 4; }
+.plot .b.laeuft { fill-opacity: .45; }
+.plot .b.jetzt, .plot .b.teil.leer { fill: var(--eis); }
+.plot .b.teil:not(.leer) { fill: none; stroke: var(--eis); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.xlab { position: relative; height: 1.2rem; font-size: .7rem; letter-spacing: .02em; color: var(--lbl); margin-top: var(--s1); font-variant-numeric: tabular-nums; }
+.xlab span { position: absolute; white-space: nowrap; }
+.xlab span:last-child { transform: translateX(-100%); }
+/* Eine einzige Beschriftung spannt über die ganze Zeichenfläche und steht mittig, also unter dem einen Punkt (50 %); länger als die Fläche
+   wird sie gekürzt statt hinauszuragen (25.09.2026). */
+/* Je Platz eine Beschriftung mittig unter ihm (Detail, 27.09.2026: sieben Wochentage). */
+.xlab span.platz { transform: translateX(-50%); }
+.xlab span.einzeln { left: 0; right: 0; transform: none; text-align: center; overflow: hidden; text-overflow: ellipsis; }
+/* Benannter Höchstwert im Bild, nicht nur in der Kopfzeile. Fläche der Karte als Hintergrund,
+   damit die Zahl über der Linie lesbar bleibt. */
+.pmarke { position: absolute; transform: translateY(-150%); margin-left: .3rem; font-size: .7rem; font-weight: 600; letter-spacing: .01em; font-variant-numeric: tabular-nums; color: var(--txt); white-space: nowrap; background: var(--card); padding: 0 .25rem; line-height: 1.3; border-radius: 3px; }
+.pmarke.rechts { transform: translate(-100%, -150%); margin: 0 .3rem 0 0; }
+/* Ablese-Zeiger, Form der Vorlage: senkrechte Linie im Bild, je Reihe eine Marke in
+   Reihenfarbe daneben, Uhrzeit/Datum/Kalenderwoche in einer festen Zeile über der Grafik. Die Zeile
+   hält ihre Höhe auch leer, sonst springt die Grafik beim ersten Zeigen. Maus und Stift: der Finger
+   löst nichts aus und scrollt weiter, das Stylesheet greift dafür in keine Zeigerregel ein. */
+.zzeile { min-height: 1.1rem; font-size: .75rem; font-weight: 600; line-height: 1.1rem; text-align: right;
+          color: var(--txt); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zbox .plot svg { cursor: crosshair; }
+.plot .zl { stroke: var(--txt); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: 0; pointer-events: none; }
+.zan .zl { opacity: .75; }
+.zlab { position: absolute; inset: 0; pointer-events: none; }
+.zmarke { position: absolute; transform: translate(6px, -50%); font-size: .7rem; font-weight: 600; letter-spacing: .01em;
+          font-variant-numeric: tabular-nums; background: var(--card); padding: 0 .25rem; white-space: nowrap; line-height: 1.3; border-radius: 3px; }
+.zmarke.links { transform: translate(calc(-100% - 6px), -50%); }
+/* Die Zeigermarken tragen die Farbe ihrer Reihe, sonst zeigt die Marke auf eine Linie, die anders aussieht. */
+.zmarke.voll { color: var(--eis); }
+.zmarke.vgl { color: var(--lbl); }
+/* Legende: Strich statt Punkt, wie die Vorlage ihn führt (.legend i.sw, .sub i.sw) */
+i.sw { width: 18px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; background: var(--eis); flex: none; margin-right: .1rem; }
+i.sw.balken { width: 6px; height: 10px; border-radius: 0; background: var(--lbl); }
+i.sw.fein { height: 0; background: none; border-radius: 0; border-top: 2px dashed var(--lbl); }
+i.sw.schnitt { height: 2px; background: var(--txt); }
+i.sw.schnitt.ref { height: 0; background: none; border-radius: 0; border-top: 2px dashed var(--txt); }
+/* Projekte: eine Liste, eine Zeile je Repo (seit 13.09.2026, vorher Karten in drei Spalten und eine Ruhezeile).
+   Die Liste ist eine Fläche mit den Werten einer Kennzahl-Kachel (--card, 1px --border, Radius 22), ein Block über
+   alle Zeilen, die Zeilen darin ohne eigene Fläche und nur durch 1px --border getrennt. Zwei Ebenen wie die Kacheln,
+   keine dritte: am 11.09.2026 kippten Karten auf einem Panel ins Schwarz. Flach auf dem Zonengrund (erster Stand vom
+   13.09.2026) wirkte die Liste wie Fliesstext neben den Kacheln. Der Abstand zur Kachelreihe (--s4 plus --s6) ist
+   seit dem 25.09.2026 derselbe wie zwischen allen Blöcken der GitHub-Zone (--s4, Teil B); vorher stand hier zusätzlich --s6. */
+/* Seit 13.09.2026 trägt der Abschnitt die Fläche (.card), Titel und Zählzeile stehen darin wie bei Rückblick und Fremde
+   Repos: gleicher Innenabstand --s5, --s3 vom Titel zum Inhalt. */
+.pliste { margin-top: var(--s3); }
+details.prow { margin: 0; border-top: 1px solid var(--border); }
+details.prow:first-child { border-top: none; }
+/* Zwei Gruppen (25.09.2026): Zwischentitel im Stil der Kacheltitel mit Anzahl; die zweite Gruppe trägt eine Trennlinie in
+   der Rahmenfarbe mit Abstand darüber, aber nur, wenn eine erste darüber steht. */
+.pgruppe { margin: 0; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--txt); }
+/* Seit 26.09.2026 trägt nur noch die zweite Gruppe eine Zahl, gesetzt wie die Werte der Kachel-Metazeilen (Systemschrift, .75rem, 400,
+   Textfarbe, tabular-nums); die Zahl oben rechts im Titel ist entfallen, die Gesamtzahl steht links in der Metazeile darunter (.pkopf). */
+.pgruppe .panz { margin-left: .4rem; font-weight: 400; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.projekte .pkopf { margin: var(--s1) 0 0; }
+/* Kopfzeile der Liste (27.09.2026, statt des Gruppentitels «Diese Woche aktiv») auf dem Raster der Zeilen: jede Spalte beschriftet, bündig
+   mit ihrer Spur (dieselben Spalten wie details.prow > summary); fällt eine Spalte schmal weg, fällt ihr Kopf mit. */
+.pgruppe.spalten { align-items: baseline; }
+.pgruppe.spalten > span { white-space: nowrap; }
+.pgruppe .pkname { grid-area: name; } .pgruppe .pkmikro { grid-area: mikro; } .pgruppe .pkalter { grid-area: alter; } .pgruppe .pkbetreff { grid-area: betreff; }
+/* Seit der Korrektur vom 26.09.2026 rechtsbündig auf der rechten Kante der Zahlen: der Kopf steht in einem .pwert mit derselben Schrift
+   wie die Zeile (.85rem, unter 700 px .8rem, 400), damit dessen 5ch- bzw. 4ch-Spur exakt die Zahlenspur ist; der Kopf selbst trägt
+   den Stil des Gruppentitels und ragt über die Spur nach links. */
+.pgruppe .pkw { font-size: .85rem; font-weight: 400; letter-spacing: 0; line-height: 1.4; }
+.pgruppe .pspalte { grid-column: 1; justify-self: end; font-size: .75rem; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
+.pgruppe.getrennt { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); }
+.pgruppe + .pliste { margin-top: var(--s2); }
+.projekte .pkopf + .pgruppe { margin-top: var(--s3); }
+/* Aufklapper der ruhenden Gruppe (25.09.2026): der Titel ist die summary, mit Anzahl und dem Chevron der Projektzeilen. */
+/* Seit 30.09.2026 trägt auch der Warnungseintrag im Handlungsbedarf genau diesen Chevron (.chev) am rechten Ende, mit denselben
+   Regeln für Lage und Drehung. */
+details.gruppe > summary, details.hbeintrag > summary { display: flex; align-items: center; list-style: none; cursor: pointer; }
+details.gruppe > summary::-webkit-details-marker, details.hbeintrag > summary::-webkit-details-marker { display: none; }
+details.gruppe > summary .chev, details.hbeintrag > summary .chev { margin-left: auto; flex: none; }
+details.gruppe[open] > summary .chev, details.hbeintrag[open] > summary .chev { transform: rotate(45deg); }
+.projekte .pkopf + details.gruppe > summary, details.gruppe > summary + .pgruppe.spalten { margin-top: var(--s3); }
+/* Feste Spalten links, der Betreff nimmt den Überschuss auf; der Befund steht nur, wo einer vorliegt, und nimmt dem
+   Betreff seiner Zeile den Platz, die festen Spalten davor bleiben über alle Zeilen auf derselben Kante. */
+/* Zeilenhöhe und Innenabstand in rem (20.09.2026): .6rem war zu eng, zehn Zeilen lasen sich als Block. Gemessen
+   in Chrome an zehn Repos, vorher gegen nachher: bei 1280 px Zeile 39.2 -> 48.8 px, Projektblock 472.5 -> 568.4 px,
+   Seite 2898.8 -> 2990.5 px; bei 430 px Zeile 37.1 -> 46.7 px, Block 490.8 -> 586.7 px, Seite 4459.9 -> 4555.8 px.
+   Rund 96 px mehr, und der Block bleibt bei 1280 px unter einer Bildschirmhöhe. Mehr wäre eine zweite Seite. */
+details.prow > summary, .pgruppe.spalten { display: grid; grid-template-columns: 11rem 7.5rem 120px 9.5rem minmax(0, 1fr) auto 1rem;
+  grid-template-areas: "name wert mikro alter betreff befund chev"; column-gap: var(--s4); }
+details.prow > summary { align-items: center; padding: .9rem 0; font-size: .85rem; line-height: 1.4; color: var(--txt); }
+details.prow > summary::before { content: none; }
+/* Bricht ein Teilstück der Zeile, steht seine Fehlerzeile über die ganze Breite darunter, ohne das Raster zu verschieben;
+   bricht die ganze Zeile, trägt die Fehlerzeile dieselbe Trennlinie. */
+details.prow > summary > .blockfehler { grid-column: 1 / -1; margin: 0; }
+.pliste > .blockfehler { margin: 0; padding: .9rem 0; border-top: 1px solid var(--border); }
+.pliste > .blockfehler:first-child { border-top: none; }
+.pname, .pbetreff, .pbefund { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pname { grid-area: name; font-weight: 600; }
+/* Zahl rechtsbündig in einer eigenen Spur, das Delta beginnt in jeder Zeile auf derselben Kante. */
+.pwert { grid-area: wert; display: grid; grid-template-columns: 5ch auto; column-gap: .45rem; align-items: baseline; white-space: nowrap; }
+/* Fokus der Zeile (20.09.2026): volle Textfarbe tragen GENAU ZWEI Dinge, der Wochenwert und der Betreff des letzten
+   Commits — die Zahl, um die es geht, und woran gearbeitet wurde. Alles andere ordnet ein und bleibt gedämpft in
+   --lbl: Delta, Mikrokurve, Alter, Befund und Chevron. Der Repo-Name bleibt der Akzentlink. Vorher lag der Betreff
+   im selben Grau wie das Alter und die Zeile las sich durchgehend gleich. Kein Rot, kein Grün, auch nicht für das
+   Vorzeichen des Deltas. */
+.pzahl { text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--txt); }
+.pwert .delta { font-size: .8rem; color: var(--lbl); }
+.prow .mikro { grid-area: mikro; display: block; width: 120px; height: 20px; }
+.mikro rect { fill: var(--lbl); stroke: none; }
+/* Der laufende Tag im Akzent (seit 27.09.2026 Tage statt Wochen), auch als Grundstrich bei null; die übrigen gedämpft. */
+.mikro rect.jetzt { fill: var(--eis); }
+.palter { grid-area: alter; color: var(--lbl); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pbetreff { grid-area: betreff; color: var(--txt); }
+/* Befundangaben (02.10.2026): jede ist ein Sprunglink auf ihren Eintrag im Handlungsbedarf und trägt die Akzentfarbe des globalen a, ein
+   frischer Zweig ohne Eintrag bleibt gedämpft. .8rem, weil es Akzent in 13.6 px auf der Seite nicht gibt: so übernimmt der Link die
+   Kombination der Codezeilen (.zplus) und der Links im Aufklappdetail, der gedämpfte Rest die des Deltas der Zeile. */
+.pbefund { grid-area: befund; color: var(--lbl); font-size: .8rem; max-width: 16rem; }
+/* Chevron in der Form von summary::before, am Zeilenende */
+.chev { grid-area: chev; justify-self: end; margin-right: 2px; width: 7px; height: 7px; border-right: 1.5px solid var(--lbl); border-bottom: 1.5px solid var(--lbl); transform: rotate(-45deg); transition: transform .2s var(--ease); }
+details.prow[open] .chev { transform: rotate(45deg); }
+/* Ruhend und stillliegend: die GANZE Zeile gedämpft in den Texträngen, nicht über opacity, damit der Kontrast
+   messbar bleibt. Auch der Betreff, der in einer aktiven Zeile die volle Textfarbe trägt. */
+.prow.gedaempft .pname { color: var(--sec); font-weight: 500; }
+.prow.gedaempft .pzahl { color: var(--lbl); font-weight: 500; }
+.prow.gedaempft .pbetreff { color: var(--lbl); }
+/* Detail: die Wochenkurve in der Grösse der früheren Karte, darunter Stand und letzte Commits. Die Marken tragen
+   ihre Vorgabe --card, das ist wieder die Fläche unter ihnen. */
+/* Kurve links, Stand und Commits rechts, beide oben bündig; unter 700 px untereinander, Kurve zuerst. Der Stand behält
+   mindestens 20rem, die Kurve gibt nach: bei 701 px blieben dem Stand neben 26rem Kurve 150 px, das Detail wurde 937 px hoch. */
+/* Oben und unten derselbe Innenabstand wie die Fläche seitlich (--s5), damit das Detail nicht an den Nachbarzeilen klebt. */
+.pdetail { padding: var(--s5) 0; display: grid; grid-template-columns: minmax(0, 26rem) minmax(20rem, 1fr); column-gap: var(--s8); align-items: start; }
+/* Legende der Detailgrafik: eine Zeile «Commits je Tag · Achse bis N» (27.09.2026, vorher zwei); sie bleibt eine Zeile. */
+.legende2 .lz { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pdetail > .sub { margin: 0; }
+/* Umschalter 7, 30, 90 Tage über der Detailgrafik (03.10.2026): klein wie in den Kacheln, linksbündig über der Achse; die drei Grafiken liegen
+   in einer Rasterzelle (.stapel), die Höhe bleibt beim Wechsel. */
+.pkurven { min-width: 0; }
+.pkurven > .umschalter { margin-bottom: var(--s3); }
+/* Stand im Aufklappdetail (26.09.2026): ein kleines Raster aus Beschriftung (gedämpft) und Wert (Textfarbe) statt einer Metazeile mit
+   Aufzählungspunkten, dieselbe Ordnung wie in den Fussblöcken (.mz). */
+.pmeta { margin: 0; display: flex; flex-wrap: wrap; gap: .15rem .4rem; font-size: .8rem; line-height: 1.5; font-variant-numeric: tabular-nums; }
+/* Seit 26.09.2026 fliessen die Paare nebeneinander (vorher eines je Zeile, fünf Zeilen) und brechen nur zwischen den Paaren um. Ein Paar ist
+   eine Einheit ohne Umbruch; der Mittelpunkt steht vor jedem Paar ausser dem ersten, mit demselben Abstand .4rem auf beiden Seiten. Ein
+   überlanger Wert (Zweigname) kürzt mit Ellipse statt das Detail zu sprengen. */
+.ppaar { display: inline-flex; align-items: baseline; gap: .4rem; white-space: nowrap; min-width: 0; max-width: 100%; }
+.ppaar + .ppaar::before { content: "·"; color: var(--lbl); }
+.ppaar.zweig { flex: 1 1 0; min-width: 6.5rem; }
+.pmeta dt { color: var(--lbl); flex: none; }
+.pmeta dd { margin: 0; color: var(--txt); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Gemessen in der Karte: von der Kartenkante bis zur Zeichenfläche links 59 px, rechts 13 px, und
+   die letzte x-Beschriftung endete genau auf der Kante. Die 46 px Unterschied waren die 2.4 rem breite
+   Achsenspalte plus Abstand, obwohl dort höchstens drei Ziffern stehen. Achsenspalte auf 1.5 rem,
+   Abstand kleiner, dafür rechts Innenabstand und unter der Achse mehr Luft. */
+.pdetail .chart { margin-top: 0; gap: var(--s1); }
+.chart.mini .ylab { width: 1.5rem; }
+.pdetail .plot { padding-right: var(--s3); }
+.pdetail .xlab { margin-top: var(--s2); height: 1.4rem; }
+.chips { margin: var(--s2) 0 0; display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); font-size: .75rem; color: var(--lbl); letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.chip::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; margin-right: .4rem; vertical-align: .1em; opacity: .7; }
+.chip.stack { color: var(--txt); border: 1px solid var(--border); border-radius: 999px; padding: .05rem .5rem; font-size: .7rem; }
+.chip.stack::before { content: none; }
+details { margin-top: var(--s2); }
+summary { cursor: pointer; font-size: .8rem; color: var(--sec); list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: ""; display: inline-block; width: 7px; height: 7px; border-right: 1.5px solid var(--lbl); border-bottom: 1.5px solid var(--lbl); transform: rotate(-45deg); margin: 0 .6rem 2px 0; transition: transform .2s var(--ease); }
+details[open] > summary::before { transform: rotate(45deg); }
+/* Eigene Datumsspalte und fester Abstand, Datum gedämpft, Betreff in voller Textfarbe. Seit 26.09.2026 steht das Datum kurz («26.09.»,
+   en «Sep 26»), die Spalte ist 3.75rem statt 72 px breit; sie trägt auch die Stufe der Warnungen («kritisch», «critical»). */
+/* Luft in der rechten Spalte (25.09.2026): 12 px von der Metazeile zur Liste, Zeilenhöhe 1.6. */
+.commits { margin: var(--s3) 0 0; padding: 0; list-style: none; display: grid; gap: .2rem; font-size: .8rem; line-height: 1.6; color: var(--txt); }
+.commits li { display: grid; grid-template-columns: 3.75rem minmax(0, 1fr); column-gap: var(--s3); align-items: baseline; }
+.commits .datum { font-size: .72rem; color: var(--lbl); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Rückblick */
+/* «Serie und Rekorde» oben ausgerichtet, auf der Oberkante der Grafik (25.09.2026, vorher mittig). */
+.rraster { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s6); align-items: start; margin-top: var(--s3); }
+/* Bezugszeitraum im Titel (27.09.2026): «Serie und Rekorde (seit 21.04.2026)», die Klammer als .lbl wie das Blockmeta «Stand …» der
+   fremden Repos; im Titel ohne den Abstand nach unten aus .rraster .lbl. */
+.rraster .titel .lbl { margin-bottom: 0; }
+/* Legende des Rückblicks einzeilig; Zone und Wochenbeginn stehen im title. */
+.rlegende1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rraster > div { min-width: 0; }
+.rraster .lbl { margin-bottom: var(--s2); text-transform: none; }
+/* «Serie und Rekorde» trägt seit dem 20.09.2026 eine eigene Titelstufe auf der Höhe der übrigen Blocktitel
+   (.titel, 1.05rem/700), nicht nur eine Farbe: es ist die einzige Stelle der Seite mit Rekorden über den
+   ganzen Bestand und stand vorher als Fussnote neben der Rückblickgrafik. */
+/* Die Klammer folgt dem Titel im Wortabstand, nicht rechts wie die Zeitraum-Zeile der übrigen Blocktitel (space-between). */
+.rraster .titel { margin-bottom: var(--s3); justify-content: flex-start; column-gap: .3em; }
+.liste { margin: 0; padding: 0; list-style: none; display: grid; gap: .15rem; font-size: .8rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.liste .datum { display: inline-block; width: 7rem; color: var(--lbl); }
+/* Reiter als Pille (Vorlage .seg.small): Fenster der fremden Repos und der Modus-Umschalter im Kopf */
+.seg { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px; max-width: 100%; overflow-x: auto; margin: var(--s3) 0; }
+/* Farbmodus rechts im Kopf (der Sprachschalter daneben ist am 02.10.2026 entfallen). */
+.schalter { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
+.seg.modus { margin: 0; }
+.seg a, .seg button { font: inherit; background: none; border: 0; cursor: pointer; color: var(--sec); font-weight: 600; font-size: .8rem; letter-spacing: .01em; padding: .35rem .8rem; min-height: 30px; border-radius: 999px; white-space: nowrap; display: inline-flex; align-items: center; }
+.seg a:hover, .seg button:hover { text-decoration: none; color: var(--txt); }
+.seg a[aria-current], .seg button[aria-pressed="true"] { background: var(--eis); color: var(--bg); }
+/* Die drei Fenster liegen übereinander in einer Rasterzelle, die verborgenen bleiben im Fluss (visibility):
+   die Kachel ist so hoch wie das höchste Fenster, und ein Wechsel ändert die Dokumenthöhe nicht. Gemessen
+   am 11.09.2026: mit display:none war das 90-Tage-Fenster 1 px kürzer, und am Seitenende klemmte scrollY
+   von 2100 auf 2099. */
+.stapel { display: grid; }
+.fenster { grid-area: 1 / 1; min-width: 0; }
+.fenster[hidden] { display: block; visibility: hidden; }
+/* Kopfzeile des Rückblicks: die Zelle ist so breit wie die längste der drei, die gewählte steht wie vorher an der rechten
+   Kante; schmal bricht die Zeile unter den Titel und beginnt links. */
+.titel .stapel { justify-items: end; }
+@media (max-width: 600px) { .titel .stapel { justify-items: start; } }
+.scroll { overflow-x: auto; }
+.ftab { display: grid; min-width: 66rem; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.frow { display: grid; grid-template-columns: minmax(15rem, 1.6fr) 6rem 5rem 5rem 6rem 7rem 6rem; gap: .6rem; align-items: baseline; padding: .45rem .5rem; border-bottom: 1px solid var(--line); color: var(--sec); }
+.frow.kopf { font-size: .7rem; text-transform: uppercase; letter-spacing: .02em; align-items: end; }
+.frow.kopf span { white-space: normal; line-height: 1.2; color: var(--lbl); }
+.frow .repo { display: flex; flex-wrap: wrap; gap: .25rem .6rem; align-items: baseline; }
+.frow .tempo { color: var(--txt); font-weight: 600; }
+.num { text-align: right; white-space: nowrap; }
+details.fzeile { margin: 0; }
+details.fzeile summary { cursor: pointer; list-style: none; }
+details.fzeile summary::before { content: none; }
+details.fzeile summary:hover, details.fzeile[open] summary { background: var(--hauch); }
+.fdetail { padding: var(--s3) var(--s2) var(--s4) 1.25rem; border-bottom: 1px solid var(--line); background: var(--hauch); font-size: .85rem; line-height: 1.45; display: grid; gap: var(--s2); }
+.fdetail p { margin: 0; }
+/* «Was es ist» und «Warum es hier steht» nutzen das Raster der Fussblöcke (.mz): Beschriftung gedämpft, Wert in
+   Textfarbe. Die Beschriftung ist hier länger als dort, deshalb eine breitere Spur; der README-Absatz ist weg. */
+.fdetail .mz { grid-template-columns: 10rem minmax(0, 1fr); }
+.fdetail .fakten { font-size: .75rem; }
+.hn { margin: 0; padding: 0; list-style: none; display: grid; gap: .2rem; }
+/* Mittel: dieselben Spalten enger, der Betreff bleibt die flexible Spalte. */
+@media (max-width: 980px) { details.prow > summary, .pgruppe.spalten { grid-template-columns: 8rem 7.5rem 120px 8rem minmax(0, 1fr) auto 1rem; column-gap: var(--s3); }
+ }
+/* Unter 700 px fallen Betreff, Mikrokurve und Befund weg, die Zeile bleibt einzeilig; der Befund steht im Lagesatz (Zweig)
+   und in der Dienstzeile der Serverzone (Server hinter main), entschieden am 13.09.2026. Gemessen bei 430 px: 331 px
+   Zeile, Wert bis 116 px, Alter bis 115 px; beide in festen Spuren, damit sie über alle Zeilen fluchten, der Name
+   nimmt den Rest und kürzt mit Ellipse. Das Detail fällt untereinander, Kurve zuerst. Der Kopf «Repo» fällt hier weg (27.09.2026,
+   Variante b): «Commits» ragt rechtsbündig auf der Zahlenkante in die Namensspur, bei 430 px lagen 0.5 px zwischen beiden Köpfen. */
+@media (max-width: 700px) { details.prow > summary, .pgruppe.spalten { grid-template-columns: minmax(0, 1fr) 7rem 7.25rem 12px;
+  grid-template-areas: "name wert alter chev"; column-gap: .3rem; } details.prow > summary, .pgruppe .pkw { font-size: .8rem; }
+  .pwert { grid-template-columns: 4ch auto; column-gap: .3rem; } .prow .mikro, .pbetreff, .pbefund, .pgruppe .pkname, .pgruppe .pkmikro, .pgruppe .pkbetreff { display: none; }
+  .pdetail { grid-template-columns: minmax(0, 1fr); row-gap: var(--s5); } }
+/* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: vier Spalten, dann drei, zwei, eine. */
+@media (max-width: 820px) { .tiles3, .nums, .hraster, .rraster { grid-template-columns: 1fr; } }
+/* Bei schmaler Breite wächst die Beschriftungsspalte wieder mit dem Wort: der Innenabstand der Kachel
+   kostet 32 px, und mit fester 8-rem-Spalte brachen dort vier Werte um. Mit auto passt jede Zeile, weil
+   die langen Werte kurze Beschriftungen haben (Auslastung 68 + 207, Nach Neustart 95 + 209 von 342 px). */
+@media (max-width: 480px) {
+  .mz { grid-template-columns: auto minmax(0, 1fr); }
+  /* Dieselbe Regel wie in der Projektzeile unter 700 px (Entscheid 13.09.2026): schmal fällt die Zusatzspur weg,
+     damit die Zeilen einzeilig bleiben und fluchten; die Zahlen bleiben. Gemessen bei 430 px: Label und Wert
+     brauchen den Platz allein, der Balken drängte den Wert in die zweite Zeile. */
+  .fbalken, .heute .uhr { display: none; }
+  .hcrepo { display: none; } .hcommits { grid-template-columns: auto minmax(0, 1fr); }   /* schmal ohne Repo-Spalte */
+  body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } details.dienst summary { grid-template-columns: 1rem minmax(0, 1fr); } details.dienst summary .aussage { grid-column: 2; } .dz { grid-template-columns: 1fr; gap: 0; } .ddetail { padding-left: 0; } .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.pwarn { margin: var(--s3) 0 0; font-size: .75rem; color: var(--lbl); }
+.pwarn a { color: inherit; }
+/* Kopfspalte 3 nur als Zusammenfassung (25.09.2026): Unterzeile und höchstens drei Artzeilen ohne Zwischenabstand. Die Mindesthöhe ist
+   der volle Stand (Zahl, Abstand, vier Zeilen à .75rem × 1.3), 106.4 px bei 1280; die Ringspalte misst 111.59 px. So hängt die Höhe
+   der Kopfreihe weder an der Zahl der Befunde noch an der Zahl der Arten. Die Rechte-Hinweise kommen nur ohne Leserecht dazu. */
+/* Seit 26.09.2026 für fünf Arten (138 px): auch untereinander (unter 820 px) ist die Spalte bei jeder Zahl von Arten gleich hoch. */
+.n.befunde { min-height: calc(2rem + .75rem + .75rem * 1.3 + .4rem + 5 * .75rem * 1.2); }
+/* Seit 09.10.2026 einspaltig ohne Mindesthöhe: untereinander liess sie unter wenigen Arten ein Loch. Die drei Kopfspalten stehen dort
+   mit dem Abstand zwischen Serie und Repos (.npaar, --s5) untereinander. */
+@media (max-width: 820px) { .n.befunde { min-height: 0; } .nums { row-gap: var(--s5); } }
+/* Artzeilen als eigene kleine Liste (25.09.2026): .4rem Abstand zur Unterzeile, Punkt in Akzentfarbe, Text in voller Textfarbe, beim
+   Überfahren unterstrichen. Zeilenhöhe 1.25 statt 1.3, damit Zahl, Unterzeile, Abstand und drei Arten in 111.0 px passen; die Ringspalte
+   misst 111.59 px, die Kopfreihe bleibt so bei jeder Zahl von Arten gleich hoch. */
+/* Seit 26.09.2026 bis fünf Arten (dazu «nicht abrufbar»): Zeilenhöhe 1.2 statt 1.25, damit Zahl, Unterzeile und fünf Arten mit 138 px unter der
+   Ringspalte (139.59 px) bleiben und die Kopfreihe nicht an der Zahl der Befunde hängt. */
+.barten { margin: .4rem 0 0; padding: 0; list-style: none; display: grid; }
+.barten li { font-size: .75rem; line-height: 1.2; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Derselbe Punkt seit 03.10.2026 vor jedem Eintrag im Block Handlungsbedarf (.hbliste > li), in derselben Grösse. */
+.barten li::before, .hbliste > li::before { content: "•"; color: var(--eis); margin-right: .4rem; }
+.hbliste > li::before { font-size: .75rem; }
+.barten a { color: var(--txt); text-decoration: none; }
+.barten a:hover, .barten a:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
+.bunter { display: grid; min-width: 0; }
+.bunter > span { font-size: .75rem; letter-spacing: .01em; color: var(--lbl); line-height: 1.3; }
+.bunter a { color: inherit; }
+.bunter a:hover { color: var(--eis); }
+/* Block Handlungsbedarf (seit 09.10.2026 dicht): unter dem Titel die Zeile der Arten mit 0 in der Schrift der Einzelheiten (.hbliste
+   .hbrest), darunter die Arten mit Befund auf dem Raster der Kacheln (.hraster, unter 820 px untereinander), je Art Titel und Einträge
+   in einer Spalte; eine Art mit eigenem Raster (mehr Einträge als eine Spalte trägt) nimmt die volle Breite. Abstände wie vorher:
+   --s3 unter einem Titel, --s5 vor der nächsten Art, --s4 zwischen den Spalten. */
+.handlung > .hbrest { margin: var(--s3) 0 0; font-size: .8rem; line-height: 1.4; }
+.handlung > .hraster { margin-top: var(--s5); row-gap: var(--s5); }
+.handlung > .titel + .hraster { margin-top: var(--s3); }
+.handlung > .hraster > div { min-width: 0; }
+.handlung > .hraster > div:has(> .hraster) { grid-column: 1 / -1; }
+.handlung .hbart + .hbliste { margin-top: var(--s3); }
+.hbart { margin: 0; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; line-height: 1.35; color: var(--txt); }
+/* Seit 03.10.2026 eine Liste: je Eintrag der Punkt in der ersten Spalte, Repo-Zeile und Unterzeilen in der zweiten (hängender Einzug),
+   --s4 zwischen den Einträgen, .2rem zwischen den Unterzeilen wie in der Aufteilung der Heute-Kachel. Jede Zeile einzeilig mit Ellipse,
+   ein Commit-Betreff (.hbzwei) höchstens zwei Zeilen. */
+.hbliste { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s4); font-size: .8rem; line-height: 1.4; color: var(--txt); min-width: 0; }
+/* align-content (09.10.2026): die Reihe des Rasters streckt einen kürzeren Eintrag auf die Höhe des Nachbarn, ohne start verteilte das Grid
+   den Überschuss auf seine Zeilen und die Unterzeile rutschte nach unten (site-template neben atlas-web: 31.6 statt 21.1 px). */
+.hbliste > li { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); row-gap: .2rem; align-items: baseline; align-content: start; }
+.hbliste > li > * { grid-column: 2; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbliste > li > .hbzwei { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+/* Warnungseintrag (26.09.2026, zweiter Lauf): die Zeile bleibt einzeilig mit Ellipse und ist aufklappbar; aufgeklappt je Warnung Titel,
+   Felder im Raster der Fussblöcke (.mz) und die Links, umbrechend. Standardmässig zu, der Zustand steht in ?handlung=. */
+.hbliste > li.hbauf > details { white-space: normal; overflow: visible; }
+details.hbeintrag { margin: 0; }
+details.hbeintrag > summary { column-gap: var(--s2); font-size: .8rem; line-height: 1.4; color: var(--txt); }
+details.hbeintrag > summary::before, details.heute-rest > summary::before { content: none; }
+.hbtext { min-width: 0; display: grid; row-gap: .2rem; }
+.hbtext > * { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbdetail { display: grid; gap: var(--s3); padding: var(--s2) 0 var(--s3); font-size: .8rem; line-height: 1.45; }
+.hbw { display: grid; gap: .15rem; min-width: 0; }
+.hbw .mz { grid-template-columns: 7.5rem minmax(0, 1fr); }
+.hbtitel { margin: 0 0 .15rem; font-weight: 600; color: var(--txt); }
+.hbsumm { margin: 0 0 .2rem; color: var(--txt); overflow-wrap: anywhere; }
+.hbentw { margin-left: .5rem; padding: 0 .3rem; font-size: .7rem; font-weight: 400; color: var(--lbl); border: 1px solid var(--border); border-radius: 3px; }
+.hblinks { margin: .2rem 0 0; }
+.hblinks a { color: var(--eis); }
+.hbliste a { color: inherit; }
+.hbliste a:hover { color: var(--eis); }
+.hbliste .hbrepo { font-weight: 600; }
+.hbliste code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; }
+.hbrest { color: var(--lbl); }
+/* Fusszeile (26.09.2026, für die freie Veröffentlichung): Copyright, Stand der GitHub-Daten und des Servers, Version; gedämpft, eine
+   Zeile, die bei schmaler Breite umbricht. Die Form von vor 3f40bf6 ohne Linie: die Zonen darüber tragen schon Rahmen. */
+.fusszeile { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); font-size: .75rem; letter-spacing: .01em; line-height: 1.4; color: var(--lbl);
+  font-variant-numeric: tabular-nums; }
+/* Umschalter der Kacheln 2 und 3 (30.09.2026): klein im Stil der Reiter, seit 01.10.2026 fest rechts oben auf Höhe der grossen Zahl,
+   Titel und Vergleichszeile darunter über die volle Breite, unabhängig von der Länge des Titels.
+   Die Fenster liegen in einer Rasterzelle übereinander (.stapel) und behalten den Aufbau der Kachel, auch verborgen. */
+.tile .wert.mit-nav { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s2); }
+.tile .wert.mit-nav > .umschalter { align-self: center; }
+.tile .wert.mit-nav > :not(.big):not(.umschalter) { grid-column: 1 / -1; }
+.seg.klein { margin: 0; padding: 2px; }
+.seg.klein button { font-size: .7rem; padding: .15rem .55rem; min-height: 22px; }
+/* Schmal (gemessen 01.10.2026 bei 390 px, EN, «8’888»): mit .55rem überdeckte der Umschalter die Zahl um 17 px, mit .3rem bleiben 7 px Luft.
+   Die Schrift bleibt, eine kleinere wäre ein neues Format. */
+@media (max-width: 480px), (min-width: 1100px) and (max-width: 1199px) { .seg.klein button { padding: .15rem .3rem; } }
+/* Umschalter und Zahl (02.10.2026, gemessen mit «8’888»): von 1100 bis 1199 px reichen die schmalen Knöpfe für --s3 Luft (ab rund
+   1160 px auch die normalen, EN); darunter bis zur einspaltigen Ansicht nicht, die Kachel «Letzte 30 Tage» lag bei 821 px 80 px im
+   Minus. Dort steht der Umschalter auf eigener Zeile unter der Vergleichszeile, linksbündig auf der Kante der Metazeilen, damit die
+   grosse Zahl in allen drei Kacheln auf derselben Höhe bleibt. Abstand wie Vergleichszeile zu Metazeilen: 4 px Zeilenabstand der
+   Gruppe plus --s3 sind die 16 px aus Kachelabstand und Rand der Metazeilen (--s2 + --s2). */
+@media (min-width: 821px) and (max-width: 1099px) {
+  .tile .wert.mit-nav > .umschalter { grid-column: 1 / -1; grid-row: 4; justify-self: start; margin-top: var(--s3); }
+}
+.tile.kpi.umschalt > .stapel { flex: 1; }
+.tile.kpi.umschalt .fenster, .tile.kpi.umschalt .fenster[hidden] { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }

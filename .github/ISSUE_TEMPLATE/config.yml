@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Status of this project (no support, pull requests not accepted)
+    url: https://github.com/cidix/gitpuls/blob/main/README.md#status
+    about: Please read the status paragraph before opening an issue. Security problems go through private vulnerability reporting.
