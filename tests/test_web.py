@@ -10,7 +10,6 @@ os.environ["GITPULS_DB"] = os.path.join(tempfile.mkdtemp(), "probe.db")   # vor 
 os.environ.setdefault("GITPULS_ADRESSEN", "alt@fernwerk-studio.example,mail@fernwerk-studio.example,dev@fernwerk-studio.example")   # kein Autor-Default mehr im Code (Codex-Befund 20.09.2026)
 os.environ.setdefault("GITPULS_SPRACHE", "de")   # die bisherigen Prüfungen laufen auf Deutsch, die Vorgabe ist seit 25.09.2026 en
 os.environ["GITPULS_FORMAT"] = "de-CH"   # Schreibweisen wie die eigene Instanz (26.09.2026); die übrigen Locales prüft tests/test_format.py
-os.environ["GITPULS_STACK"] = "python,php,wordpress,typescript,javascript,swift,monkey c,monkeyc"   # Stack der eigenen Instanz, seit 10.10.2026 eine Einstellung (Audit S23)
 os.environ["TZ"] = "Europe/Zurich"   # die Zone setzt der Test selbst (10.10.2026, Audit S28): grün unter jeder TZ der Shell
 from app import db, sprache, web  # noqa: E402
 from tests.sammlerprobe import lauf  # noqa: E402
@@ -67,7 +66,7 @@ beispiel["dienste"][2]["timer"][0].update(status="inactive", gestartet_utc=None,
 beispiel["dienste"][1]["timer"][0].update(status="activating", gestartet_utc=web.iso_utc(jetzt), letzter_utc=None, naechster_utc=None)
 beispiel["dienste"][0]["container"][0]["neustarts"] = 2
 h = web.server_html(beispiel, jetzt)
-sammler = h[h.index("gitpuls-sammler"):h.index("gitpuls-sterne")]
+sammler = h[h.index("gitpuls-sammler"):h.index("gitpuls-deploy", h.index("gitpuls-sammler"))]
 assert "seit Neustart" in sammler and "nicht gelaufen" in sammler and "sauber beendet" not in sammler and "Exit" not in sammler and "läuft seit" not in sammler, sammler
 preise = h[h.index("beobachter-lauf: läuft seit"):h.index("nach dem Lauf")]
 assert "Exit" not in preise, preise
@@ -551,9 +550,9 @@ padding = re.search(r"details\.prow > summary \{[^}]*(padding: [^;]*);", css).gr
 assert re.fullmatch(r"padding: ([\d.]+)rem 0", padding) and float(padding.split()[1][:-3]) >= .9, padding
 assert re.search(r"grid-template-columns: minmax\(0, 1fr\) [\d.]+rem [\d.]+rem 12px;", schmal), schmal
 assert "Zweig test/x in still: 1 Commit vor main, 118 dahinter" in s, "der verborgene Befund steht im Kopf der Zone"
-# Kopf der Projektliste in der Fläche (seit 13.09.2026): der Abschnitt ist die Fläche wie Rückblick und Fremde Repos, Titel
+# Kopf der Projektliste in der Fläche (seit 13.09.2026): der Abschnitt ist die Fläche wie der Rückblick, Titel
 # und Zählzeile stehen darin vor der Liste; die Liste selbst trägt keine zweite Fläche.
-kopf_zeilen = [f'<section class="card {name}">\n  <h3 class="titel">{titel} <span class="lbl"' for name, titel in (("rueckblick", "Rückblick"), ("fremde", "Fremde Repos nach Sternen"))]
+kopf_zeilen = [f'<section class="card {name}">\n  <h3 class="titel">{titel} <span class="lbl"' for name, titel in (("rueckblick", "Rückblick"),)]
 kopf_zeilen.append(f'<section class="card projekte">\n  <h3 class="titel">Projekte</h3>\n  <p class="delta bezug pkopf"><span class="kwert">{pruefe_gesamt(s)}</span>')
 assert all(k in s for k in kopf_zeilen), [k for k in kopf_zeilen if k not in s]
 assert s.index('<section class="card projekte">') < s.index('class="titel">Projekte') < s.index('<div class="pliste">') < s.index("</section>", s.index('<section class="card projekte">'))
@@ -739,7 +738,7 @@ import io, contextlib
 MARKER = {"Serverstand": 'class="stand"', "Server-Lage": '<div class="tile lage"><p class="f">', "Dienste": 'details class="dienst"',
           "Maschine": ">Produkt<", "Installiert": ">Docker<", "Firewall": ">Zweite Reihe<", "Updates": ">Pakete<",
           "Sammelstand": "GitHub-Daten von", "GitHub-Lage": 'class="nums"', "Kachel": 'class="card tile kpi"', "Repozahl": 'class="n repos-spalte"',
-          "Projekte": "<h3 class=\"titel\">Projekte</h3>", "Rückblick": "Rückblick <span", "Fremde Repos": "Fremde Repos nach Sternen",
+          "Projekte": "<h3 class=\"titel\">Projekte</h3>", "Rückblick": "Rückblick <span",
           "Fusszeile": '<footer class="fusszeile"><span>© '}
 def kaputt_fn(*a, **k):
     raise RuntimeError("künstlich")
@@ -747,7 +746,7 @@ FEHLER = "Block konnte nicht gezeichnet werden: RuntimeError"
 for name, fn, erwartet in (("Serverstand", "server_stand_block", 1), ("Server-Lage", "server_lage_block", 1), ("Dienste", "server_dienste_block", 1),
                            ("Maschine", "fuss_maschine", 1), ("Installiert", "fuss_installiert", 1), ("Firewall", "fuss_firewall", 1), ("Updates", "fuss_updates", 1),
                            ("Sammelstand", "stand_block", 1), ("GitHub-Lage", "lage_block", 1), ("Kachel", "kachel_block", 5), ("Repozahl", "repos_html", 1),
-                           ("Projekte", "projekte_block", 1), ("Rückblick", "rueckblick_block", 1), ("Fremde Repos", "fremde_block", 1),
+                           ("Projekte", "projekte_block", 1), ("Rückblick", "rueckblick_block", 1),
                            ("Fusszeile", "fusszeile", 1)):
     echt = getattr(web, fn)
     setattr(web, fn, kaputt_fn)
@@ -814,12 +813,12 @@ def antwortcode():
 for inhalt in ("{", "", "[1, 2"):
     web.SERVER.write_text(inhalt); web.DEPLOY.write_text(inhalt)
     code, s = antwortcode()
-    assert code == 200 and "Serverstand nicht lesbar" in s and "Noch kein Serverstand" not in s and "Fremde Repos nach Sternen" in s, (repr(inhalt), code)
+    assert code == 200 and "Serverstand nicht lesbar" in s and "Noch kein Serverstand" not in s and "Rückblick <span" in s, (repr(inhalt), code)
 ohne = json.loads(json.dumps(beispiel)); ohne["dienste"] = [{}]
 web.SERVER.write_text(json.dumps(ohne)); web.DEPLOY.write_text(json.dumps({"fernwerk-studio/neu": {}}))
 code, s = antwortcode()
 assert code == 200 and "Block konnte nicht gezeichnet werden" not in s and "?\u00a0Eintrag nicht gemessen" in s.replace(":", "") \
-    and "nicht gemessen (Eintrag ungültig, server.json)" in s and ">Produkt<" in s and "Fremde Repos nach Sternen" in s, code
+    and "nicht gemessen (Eintrag ungültig, server.json)" in s and ">Produkt<" in s and "Rückblick <span" in s, code
 web.SERVER.write_text(json.dumps(beispiel)); web.DEPLOY.unlink()
 
 # 4: die zweite Reihe. Vorhanden (iptables, sieben INPUT- und vier DOCKER-USER-Regeln je Familie, gemessen
@@ -1650,9 +1649,9 @@ zh_tage = [datetime.fromisoformat(t.replace("Z", "+00:00")).astimezone(web.TZ).d
 stellen_von = lambda g: [t.split("|") for t in web.html.unescape(re.search(r'data-stellen="([^"]+)"', g).group(1)).split(";")]
 rb_teil = lambda s, f: s[s.index(f'<div class="fenster" data-fenster="{f}"'):s.index("</p></div>", s.index(f'<div class="fenster" data-fenster="{f}"'))]
 rb_kopf = lambda s: dict(re.findall(r'<span class="fenster" data-fenster="(\w+)"(?: hidden)?>([^<]*)</span>', s))
-sichtbar = lambda s: [f for f, h in re.findall(r'<div class="fenster" data-fenster="(\w+)"( hidden)?>', s[s.index('<section class="card rueckblick">'):s.index('<section class="card fremde">')]) if not h]
+sichtbar = lambda s: [f for f, h in re.findall(r'<div class="fenster" data-fenster="(\w+)"( hidden)?>', s[s.index('<section class="card rueckblick">'):s.index('</section>', s.index('<section class="card rueckblick">'))]) if not h]
 s_r = web.seite(jetzt=jr)
-rb = s_r[s_r.index('<section class="card rueckblick">'):s_r.index('<section class="card fremde">')]
+rb = s_r[s_r.index('<section class="card rueckblick">'):s_r.index('</section>', s_r.index('<section class="card rueckblick">'))]
 d30, d90, d0, dh = date(2026, 8, 18), date(2026, 6, 19), date(2026, 4, 21), date(2026, 9, 16)
 assert min(zh_tage) == d0 and summe_sql(d0, dh) == len(roh_r) == 40, "erster Tag nach Zürcher Datum, nicht nach UTC"
 n30, n90 = summe_sql(d30, dh), summe_sql(d90, dh)
@@ -1706,16 +1705,15 @@ s_en = web.seite(jetzt=jr, sprache="en")
 assert re.search(r'<h3 class="titel">Streaks and records <span class="lbl">\(since [^<]*2026\)</span></h3>', s_en) and "all data since" not in s_en, s_en[s_en.index("Streaks") - 40:][:200]
 assert rb.index("Serie und Rekorde") > rb.rindex('<div class="fenster"') and "Beste Woche</span>06.–12.07.2026 mit 30" in rb, rb[rb.index("Beste Woche") - 20:][:120]
 assert "W28" not in rb and "KW" not in rb, "kein Kalenderwochen-Bezeichner im Rückblick"
-# Reiterwahl über die Adresse, getrennt vom Parameter der Rangliste: beide gelten zugleich, ein unbekannter Wert fällt auf 30
+# Reiterwahl über die Adresse, ein unbekannter Wert fällt auf 30
 def seite_von(pfad):
     h_ = web.Handler.__new__(web.Handler); h_.wfile = io.BytesIO(); h_.kopf_nur = False; h_.headers = {}
     h_.send_response = lambda code: setattr(h_, "code", code); h_.send_header = lambda *a: None; h_.end_headers = lambda: None
     h_.bedienen(urlparse(pfad))
     return h_.wfile.getvalue().decode()
-for pfad, rbw, stw in (("/?rueckblick=90", "90", "7"), ("/?rueckblick=beginn&sterne=90", "beginn", "90"), ("/?sterne=30", "30", "30"), ("/?rueckblick=jahr", "30", "7"), ("/", "30", "7")):
+for pfad, rbw in (("/?rueckblick=90", "90"), ("/?rueckblick=beginn", "beginn"), ("/?rueckblick=jahr", "30"), ("/", "30")):
     s_a = seite_von(pfad)
-    fr = s_a[s_a.index('<section class="card fremde">'):]
-    assert sichtbar(s_a) == [rbw] and re.findall(r'<div class="fenster" data-fenster="(\d+)">', fr) == [stw], (pfad, sichtbar(s_a))
+    assert sichtbar(s_a) == [rbw] and 'class="card fremde"' not in s_a, (pfad, sichtbar(s_a))
 # Favicon (27.09.2026) über den echten Handler: /favicon.ico mit 200 und image/x-icon, ohne immutable (die Adresse trägt keine Prüfsumme);
 # icon.svg und apple-touch-icon.png über den /s/<hash>-Weg mit ihrem Medientyp. Die drei link-Tags stehen im Kopf, der Platzhalter data:, ist weg.
 def antwort_von(pfad):
@@ -1745,20 +1743,20 @@ paar = lambda name: re.search(rf"--{name}: light-dark\(([^,]+), (.+?)\);", tok).
 for i, modus in enumerate(("light", "dark")):
     assert all(f"{k}: {paar(t_)[i].strip()}" in modi[modus] for k, t_ in (("fill", "card"), ("stroke", "border"))) and f"fill: {paar('eis')[i].strip()}" in modi[modus], (modus, modi[modus])
 assert 'font-weight="700"' in svg and "-apple-system" in svg and ">g</text>" in svg, svg
-assert 'data-param="rueckblick" data-vorgabe="30"' in s_r and 'data-param="sterne" data-vorgabe="7"' in s_r and s_r.count("data-param=") == 2
+assert 'data-param="rueckblick" data-vorgabe="30"' in s_r and 'data-param="sterne"' not in s_r and s_r.count("data-param=") == 1
 assert "q.set(nav.dataset.param,f)" in s_r and "q.delete(nav.dataset.param)" in s_r and "'/?sterne='" not in s_r and "history.replaceState(null,'',(q.toString()?'/?'+q:'/')+location.hash)" in s_r and "nav.parentNode.querySelectorAll('.fenster')" in s_r
 # Leeres Fenster: am 10.01.2027 liegt der letzte Commit 116 Tage zurück. 30 und 90 Tage mit Summe 0, ohne Spitze und ohne Durchschnitt;
 # seit Beginn trägt weiter alles. Ohne jeden Commit steht in allen drei Kopfzeilen «noch keine Daten».
 jl = datetime(2027, 1, 10, 12, 0, tzinfo=web.TZ)
 s_l = web.seite(jetzt=jl, rueckblick="90")
-rl = s_l[s_l.index('<section class="card rueckblick">'):s_l.index('<section class="card fremde">')]
+rl = s_l[s_l.index('<section class="card rueckblick">'):s_l.index('</section>', s_l.index('<section class="card rueckblick">'))]
 assert summe_sql(date(2026, 12, 12), jl.date()) == 0 and summe_sql(date(2026, 10, 13), jl.date()) == 0
 # Seit 02.10.2026 mit Jahr (CLDR-Intervall im Skelett mit Jahr): über den Jahreswechsel tragen beide Enden ihr Jahr, sonst nur das Ende.
 assert rb_kopf(rl) == {"7": "7 Tage, 04.–10.01.2027, Summe 0", "30": "30 Tage, 12.12.2026\u202f–\u202f10.01.2027, Summe 0",
                        "60": "60 Tage, 12.11.2026\u202f–\u202f10.01.2027, Summe 0", "90": "90 Tage, 13.10.2026\u202f–\u202f10.01.2027, Summe 0",
                        "beginn": f"seit Beginn, 21.04.2026\u202f–\u202f10.01.2027, Summe {len(roh_r)}"}, rb_kopf(rl)
 s_le = web.seite(jetzt=jl, rueckblick="90", sprache="en", accept="en-US")
-rle = s_le[s_le.index('<section class="card rueckblick">'):s_le.index('<section class="card fremde">')]
+rle = s_le[s_le.index('<section class="card rueckblick">'):s_le.index('</section>', s_le.index('<section class="card rueckblick">'))]
 assert rb_kopf(rle) == {"7": "7 days, Jan\u00a04\u202f–\u202f10,\u00a02027, total 0", "30": "30 days, Dec\u00a012,\u00a02026\u202f–\u202fJan\u00a010,\u00a02027, total 0",
                         "60": "60 days, Nov\u00a012,\u00a02026\u202f–\u202fJan\u00a010,\u00a02027, total 0", "90": "90 days, Oct\u00a013,\u00a02026\u202f–\u202fJan\u00a010,\u00a02027, total 0",
                         "beginn": f"all time, Apr\u00a021,\u00a02026\u202f–\u202fJan\u00a010,\u00a02027, total {len(roh_r)}"}, rb_kopf(rle)
@@ -1793,7 +1791,7 @@ for i, t in enumerate(roh_t):
     c.execute("INSERT INTO commits (sha, repo, zeitstempel_utc, autor_adresse) VALUES (?, 'fernwerk-studio/neu', ?, 'dev@fernwerk-studio.example')", (f"t{i}", t.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")))
 c.commit(); c.close()
 s_t = web.seite(jetzt=jt)
-rt = s_t[s_t.index('<section class="card rueckblick">'):s_t.index('<section class="card fremde">')]
+rt = s_t[s_t.index('<section class="card rueckblick">'):s_t.index('</section>', s_t.index('<section class="card rueckblick">'))]
 tage_t = [t.date() for t in roh_t]
 for f, von in (("90", date(2026, 6, 17)), ("beginn", date(2026, 6, 3))):
     montag = von - timedelta(days=von.weekday())
@@ -1990,7 +1988,7 @@ assert f'<p class="sub rlegende1" title="Zone {web.zonenname()}">' in seite() an
 assert "align-items: start" in " ".join(regeln[".rraster"]) and "white-space: nowrap" in " ".join(regeln[".rlegende1"]), "Serie und Rekorde oben, Legende einzeilig"
 assert web.BALKEN_PX_H == {"gross": 13 * 16, "klein": 6 * 16, "mini": 6 * 16} and "height: 13rem" in " ".join(regeln[".chart.gross .plot svg"]) and "height: 6rem" in " ".join(regeln[".chart.mini .plot svg"]) and "height: 6rem" in " ".join(regeln[".chart.klein .plot svg"]), "Balkenhöhe folgt der CSS"
 assert "fill: var(--lbl)" in " ".join(regeln[".plot .b"]) and "fill: none" in " ".join(regeln[".plot .b.teil:not(.leer)"]) and "var(--eis)" in " ".join(regeln[".plot .b.jetzt"]), "Farben der Balken über CSS"
-# Die Klammer trägt .lbl wie das Blockmeta «Stand …» der fremden Repos (keine eigene Typografie), nie .fenster: das Reiterskript blendet jedes
+# Die Klammer trägt .lbl (keine eigene Typografie), nie .fenster: das Reiterskript blendet jedes
 # .fenster der Karte ohne passendes data-fenster aus. Im Titel ohne den Abstand aus .rraster .lbl.
 _rek = seite()[seite().index('<div class="rraster">'):]
 _klammer = re.search(r'<h3 class="titel">Serie und Rekorde <span class="([^"]+)">\(seit ', _rek).group(1)
@@ -2088,93 +2086,14 @@ assert s.index("localStorage.getItem('gitpuls-modus')") < s.index("tokens.css") 
 assert s.count('data-wahl=') == 2 and 'data-wahl="system"' not in s and "'system'" not in s, "zwei Segmente, kein dritter Zustand"
 assert "prefers-color-scheme" in s and "removeItem('gitpuls-modus')" in s, "Listener und Rückfall auf das System"
 
-# Reiter 7/30/90: alle drei Fenster im HTML, genau eines sichtbar, das aus ?sterne=
-# (seit dem Rückblick mit eigenen Reitern auf den Abschnitt der Rangliste beschränkt)
-for f in (7, 30, 90):
-    s = seite(f)
-    fr = s[s.index('<section class="card fremde">'):]
-    assert fr.count('class="fenster"') == 3 and fr.count('class="fenster" data-fenster="%d">' % f) == 1 and fr.count(" hidden>") == 2, f
-    assert 'data-fenster="%d" aria-pressed="true"' % f in fr and fr.count('aria-pressed="true"') == 1, f
-assert "history.replaceState" in s and 'href="/?sterne=' not in s
+# Die Rangliste fremder Repos ist mit 1.1.0 entfallen, samt Reitern und ?sterne=.
+s = seite()
+assert 'class="card fremde"' not in s and 'data-param="sterne"' not in s and 'href="/?sterne=' not in s
 # Die Fusszeile ist seit 26.09.2026 zurück (Copyright, Stand, Version), die Zeile zu Zeitzone und Wochenbeginn bleibt weg (Entscheid 11.09.2026).
 assert s.count("<footer") == 1 and "Zeitzone Europe/Zurich" not in s and "Wochen ab Montag" not in s.split("<footer")[1], "Fusszeile ohne Zonenzeile"
 import re as _re
 _titel = _re.search(r"<header><h1>(.*?)</h1>", s).group(1)
 assert _re.findall(r'<a [^>]*href="([^"]*)"', _titel) == ["/"] and _titel.count("<a ") == 1, _titel   # genau ein Link auf /
-# Zuwachs mit einem Vorzeichen: -476 statt "+-476", +12, 0, leer ohne Vergleichsstand
-zeile = lambda z: dict(repo="x/y", sterne=1000, sprache="Python", beschreibung="", erstellt="2026-09-01T00:00:00Z", topics="[]", issues=None,
-                       forks=None, lizenz=None, zuwachs=z, erstmals="2026-09-02", tage_in_liste=3, release=None, release_datum=None, readme=None, hn=None,
-                       ungemessen=None, detail_gesehen=None)
-tab = web.tabelle_fremde([(1.0, 3, zeile(-476)), (1.0, 3, zeile(12)), (1.0, 3, zeile(0)), (1.0, 3, zeile(None)), (1.0, 3, zeile(-1234))], jetzt_zh.date())
-# Seit 26.09.2026 mit echtem Minuszeichen U+2212 statt Bindestrich.
-assert "+-" not in tab and '>\u2212476<' in tab and '>+12<' in tab and '>0<' in tab and "<span class=\"num muted\"></span>" in tab and ">\u22121’234<" in tab and ">-" not in tab, tab
-
-# Rangliste (Entscheid 20.09.2026): statt des übernommenen README-Absatzes und des Beschreibungsblocks zwei Zeilen
-# je Repo. «Was es ist» = Beschreibung plus erster echter README-Satz, auf einen Satz gekürzt. «Warum es hier steht»
-# = Sprache mit der Zahl der eigenen Repos darin, passende Topics, Sterne je Tag, Alter. Der Chip nennt die Sprache.
-frz = lambda **k: dict(zeile(12), **k)
-# Echter Fall von browser-use/jev-ultrafast (20.09.2026): der Callout steht ohne Leerzeile im selben Absatz und
-# überlebt den Absatzfilter des Sternlaufs; «i. am. speed.» ist EIN Satz und keine drei.
-readme_lang = ("**i. am. speed.** > [!IMPORTANT] > **Die Warteliste ist offen.** Jetzt eintragen. "
-               "Das Werkzeug baut Projekte schneller als alles andere.")
-r_py = frz(repo="a/schnell", sprache="Python", beschreibung="Ein schneller Paketmanager", topics=json.dumps(["python", "cli", "rust"]), readme=readme_lang)
-tab = web.tabelle_fremde([(320.5, 12, r_py)], jetzt_zh.date(), {"python": 4, "php": 1})
-assert '<div class="mz"><span class="mk">Was es ist</span><span><span translate="no">Ein schneller Paketmanager. i. am. speed.</span></span></div>' in tab, tab[tab.index("Was es ist") - 40:][:300]
-assert "Warteliste" not in tab and "Jetzt eintragen" not in tab, "Callout und Blockzitat fallen weg"
-assert ("<span>Python, 4 eigene Repos in dieser Sprache · Topics aus dem eigenen Stack: python · 320.5 Sterne je Tag · 12 Tage alt</span>") in tab, tab[tab.index("Warum") - 40:][:400]
-assert "Das Werkzeug baut Projekte schneller" not in tab and 'class="readme"' not in tab, "der übernommene Absatz fällt weg, nur der erste Satz bleibt"
-assert web.erster_satz("**Ein Titel.** Mehr Text.") == "Ein Titel." and web.erster_satz("Eins. > [!NOTE] Zwei.") == "Eins."
-# Seit 25.09.2026 ohne Sprach-Chip neben dem Namen: die Sprache steht in ihrer Spalte.
-assert 'chip stack' not in tab and "passt zu meinem Stack" not in tab and "<span>Python</span>" in tab, "kein Chip, Spalte Sprache bleibt"
-# Zahlen im Format der Seite, auch «Sterne je Tag»: Apostroph als Tausendertrenner, Punkt als Dezimalzeichen, nie ein Komma.
-tab_gross = web.tabelle_fremde([(12345.67, 3, frz(sterne=1234567))], jetzt_zh.date(), {"python": 1})
-assert '<span class="num tempo">12’345.7</span>' in tab_gross and "12’345.7 Sterne je Tag" in web.html.unescape(tab_gross) and ">1’234’567<" in tab_gross, tab_gross[:900]
-assert not re.search(r"\d,\d{3}", re.sub(r"<[^>]+>", " ", tab_gross)), "kein Komma als Tausendertrenner"
-# Die Spalte «Tage in der Liste» entfällt (25.09.2026), «erstmals gesehen» und «Alter in Tagen» bleiben: Kopf und Zeile haben je
-# sieben Zellen, und die Rasterspur im Stylesheet hat sieben Spalten.
-kopf_f = re.search(r'<div class="frow kopf muted">(.*?)</div>', tab_gross).group(1)
-zeile_f = re.search(r'<summary class="frow">(.*?)</summary>', tab_gross, re.S).group(1)
-assert "Tage in der Liste" not in tab_gross and "erstmals gesehen" in kopf_f and "Alter in Tagen" in kopf_f and kopf_f.count("<span") == 7, kopf_f
-assert len(re.findall(r'<span class="(?:repo|num[^"]*)?"?>|<span>', zeile_f)) == 7, zeile_f
-assert len(re.sub(r"minmax\([^)]*\)", "M", re.search(r"\.frow \{[^}]*grid-template-columns: ([^;]+);", css).group(1)).split()) == 7, "sieben Spuren"
-# Reihenfolge und Ordnung: die zwei Zeilen stehen vor Topics und Fakten, Beschriftung gedämpft, Wert in Textfarbe.
-assert tab.index("Was es ist") < tab.index("Warum es hier steht") < tab.index('class="chips"') < tab.index("fakten"), tab
-assert "grid-template-columns: 10rem" in " ".join(regeln[".fdetail .mz"]) and ".fdetail .readme" not in regeln, regeln.get(".fdetail .mz")
-# Ohne eigenes Repo in der Sprache, ohne Topic-Treffer und ohne Sprache steht das ebenso im Klartext, und ohne
-# Treffer gibt es keinen Chip.
-r_go = frz(repo="b/go", sprache="Go", beschreibung="Ein Werkzeug", topics=json.dumps(["devops"]), readme=None)
-tab_go = web.tabelle_fremde([(7.0, 100, r_go)], jetzt_zh.date(), {"python": 4})
-assert "Go, kein eigenes Repo in dieser Sprache · 7.0 Sterne je Tag · 100 Tage alt" in tab_go and "Topics aus dem eigenen Stack" not in tab_go, tab_go
-assert '<span translate="no">Ein Werkzeug</span>' in tab_go, tab_go
-r_ohne = frz(repo="c/leer", sprache=None, beschreibung=None, topics=json.dumps(["wordpress"]), readme=None)
-tab_ohne = web.tabelle_fremde([(1.0, 1, r_ohne)], jetzt_zh.date(), {})
-assert "GitHub nennt keine Sprache · Topics aus dem eigenen Stack: wordpress · 1.0 Sterne je Tag · 1 Tag alt" in tab_ohne, tab_ohne
-assert "GitHub nennt keine Beschreibung, und das README trägt keinen lesbaren Satz." in tab_ohne, tab_ohne
-assert 'chip stack' not in tab_ohne and "<span>–</span>" in tab_ohne, "ohne Sprache ein Strich in der Spalte, kein Chip"
-# Wiederholt das README die Beschreibung, steht sie nur einmal da.
-r_dopp = frz(repo="d/dopp", beschreibung="Ein schneller Paketmanager", readme="Ein schneller Paketmanager für Python.")
-assert web.tabelle_fremde([(1.0, 1, r_dopp)], jetzt_zh.date(), {}).count("Ein schneller Paketmanager") == 1
-# Gleicher Text in Beschreibung und README, kürzer als die Untergrenze der Anfangsprüfung: trotzdem nur einmal.
-assert web.was_es_ist(frz(beschreibung="i. am. speed.", readme="i. am. speed.")) == "i. am. speed."
-# Eine Beschreibung ohne Satzzeichen bekommt einen Punkt, damit sie nicht in den README-Satz hineinläuft.
-assert web.was_es_ist(frz(beschreibung="The Photoshop alternative for Mac", readme="Adobe Photoshop kostet zu viel.")) \
-       == "The Photoshop alternative for Mac. Adobe Photoshop kostet zu viel."
-# Die eigenen Repos je Sprache kommen aus derselben Karenzregel wie die Projektliste (karenzgrenze), nicht aus
-# einem neuen Schlüssel. Erwartung aus den Rohzeilen der gelisteten Repos, nicht aus eigene_sprachen().
-gel_s = gelistet_roh()
-with db.verbinden() as c2:
-    roh_sprachen = {}
-    for (sp,) in c2.execute("SELECT sprache FROM repos WHERE repo IN (%s)" % ",".join("?" * len(gel_s)), gel_s):
-        if sp:
-            roh_sprachen[sp.lower()] = roh_sprachen.get(sp.lower(), 0) + 1
-    assert web.eigene_sprachen(c2) == roh_sprachen == {"python": len(gel_s)}, (web.eigene_sprachen(c2), roh_sprachen)
-    # Ein Repo jenseits der Karenz zählt nicht mit, obwohl seine Zeile in repos stehen bleibt.
-    alle = c2.execute("SELECT COUNT(*) FROM repos WHERE sprache IS NOT NULL").fetchone()[0]
-    assert alle > len(gel_s) and "fernwerk-studio/geloescht" not in gel_s, (alle, gel_s)
-# Der erste Satz wird auf einen Satz gekürzt und nie mitten im Wort abgeschnitten.
-assert web.erster_satz("Kurz. Und noch mehr.") == "Kurz." and web.erster_satz(None) == "" and web.erster_satz("Ohne Punkt") == "Ohne Punkt"
-assert web.erster_satz("x" * 300).endswith("…") and len(web.erster_satz("x" * 300)) == 180
-
 # Kalenderwochen-Bezeichner verschwinden aus der ganzen Oberfläche (Entscheid 20.09.2026), die Rechnung bleibt auf
 # strftime('%G-W%V'): kein «2026-W38» und kein «KW 38» im HTML, aber die Schlüssel stehen weiter im Code.
 s = seite()
@@ -2191,8 +2110,6 @@ for r in gelistet_roh():
     assert '<dl class="pmeta"><div class="ppaar"><dt>Woche</dt><dd>' in det_r and f"{montag_s:%d.%m.} bis" not in det_r and "letzter Commit" not in det_r \
         and 'class="chip"' not in det_r, (r, "Raster ohne Datumsspanne und ohne letzten Commit")
 assert "bleibt bis 09.09.2026 leer" not in s and "Search-API" not in s and "Erstellt im gewählten Fenster" not in s, "Fusstext der Rangliste entfällt"
-assert '<span class="num" title="Sterne geteilt durch Alter in Tagen, GitHubs eigener Massstab">Sterne je Tag</span>' in tab, tab[:400]
-assert '<span class="num" title="leer, solange kein Sternstand von vor sieben Tagen vorliegt">+7 Tage</span>' in tab, tab[:400]
 
 # ---- Auslastung als Füllbalken in der Zeile (20.09.2026, dritter Schritt) ------------------------
 # Der 24-Stunden-Verlauf ist zurückgebaut, samt Ringpuffer, Schreiber und auslastung.json: bei zwei Werten, die
@@ -2344,7 +2261,7 @@ try:
 finally:
     web.kurve = echt_kurve
 assert mit_kurve == 3 and kaputte_seite.count('class="blockfehler') == grafikbloecke and kaputte_seite.count("ValueError") == grafikbloecke, (mit_kurve, kaputte_seite.count('class="blockfehler'))
-assert "Fremde Repos nach Sternen" in kaputte_seite and "Beispiel-VPS" in kaputte_seite, "die Blöcke ohne Grafik bleiben stehen"
+assert '<footer class="fusszeile"><span>© ' in kaputte_seite and "Beispiel-VPS" in kaputte_seite, "die Blöcke ohne Grafik bleiben stehen"
 assert kaputte_seite.count('class="mikro"') == kaputte_seite.count('class="pmeta"') == len(gelistet_roh()), "Zeile, Mikrokurve und Stand stehen ohne Wochenkurve"
 assert 'class="zbox"' not in kaputte_seite, "ohne Grafik kein Zeiger"
 # Die Liste, die /gesund liest: je gebrochener Block ein Eintrag, je Aufbau eine eigene (seit 10.10.2026, Audit S27).
@@ -2577,7 +2494,7 @@ def seite_ueber(pfad):
     finally:
         web.seite = echt_seite
     return h_.code, h_.wfile.getvalue().decode()
-for pfad, offen in (("/", False), ("/?ruhend=offen", True), ("/?ruhend=zu", False), ("/?rueckblick=90&ruhend=offen&sterne=30", True)):
+for pfad, offen in (("/", False), ("/?ruhend=offen", True), ("/?ruhend=zu", False), ("/?rueckblick=90&ruhend=offen", True)):
     code, sx = seite_ueber(pfad)
     g_ = gruppen_von(sx, mit_zustand=True)
     assert code == 200 and [(t, n, o) for t, n, _, _, o in g_] == [("aktiv", 5, True), ("Ohne Commits diese Woche", 1, offen)], (pfad, g_)
@@ -2709,7 +2626,7 @@ try:
     arten = {n.split(" ")[0] for n, _ in erfasst}
     assert {"Server", "Serverstand", "Server-Lage", "Dienste", "Maschine", "Installiert", "Firewall", "Updates", "Sammelstand", "GitHub-Lage",
             "Wochenring", "Befunde", "Kennzahlen", "Kachel", "Heute-Aufteilung", "Projekte", "Projektzeile", "Mikrokurve", "Wochenkurve",
-            "Projektstand", "Rückblick", "Fremde", "Fusszeile"} <= arten, arten
+            "Projektstand", "Rückblick", "Fusszeile"} <= arten, arten
     # Blockfehler auf Englisch: die Fehlerzeile kommt aus der Tabelle.
     echt_ring = web.ring_html
     web.ring_html = lambda *a: 1 / 0

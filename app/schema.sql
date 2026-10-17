@@ -36,25 +36,6 @@ CREATE TABLE IF NOT EXISTS laeufe (
 -- aus 4b3d201 (03.09.2026), das der Reset auf 0a457fc am 04.09.2026 verwarf. Der Sammler
 -- nennt seine Spalten deshalb ausdrücklich; die zwei bleiben leer.
 
--- Bonusteil: fremde Repos aus der Search-API, je Repo und Tag ein Sternstand.
--- Keine Zuwächse gespeichert, die entstehen bei der Abfrage aus zwei Tagen.
-CREATE TABLE IF NOT EXISTS sterne (
-    repo    TEXT NOT NULL,                      -- full_name
-    tag     TEXT NOT NULL,                      -- Abruftag, YYYY-MM-DD in der Zone des Systems
-    sterne  INTEGER NOT NULL,                   -- stargazers_count am Abruftag
-    PRIMARY KEY (repo, tag)
-) WITHOUT ROWID;
-
--- Metadaten je fremdem Repo, einmal je Repo, beim Sternlauf aufgefrischt.
--- Sternstände bleiben in `sterne`, die Ranglisten entstehen bei der Abfrage.
-CREATE TABLE IF NOT EXISTS fremde (
-    repo         TEXT PRIMARY KEY,               -- full_name
-    erstellt     TEXT NOT NULL,                  -- created_at, UTC
-    sprache      TEXT,                           -- language, NULL wenn GitHub keine nennt
-    beschreibung TEXT,                           -- description
-    gesehen      TEXT NOT NULL                   -- letzter Sternlauf, der das Repo lieferte
-) WITHOUT ROWID;
-
 -- Dritter Umbau (2026-09-03): Betreffzeile je Commit, Repo-Metadaten, Zweige.
 -- Nachziehen bestehender Datenbanken passiert in db.py (ALTER TABLE), weil
 -- CREATE TABLE IF NOT EXISTS eine vorhandene Tabelle nicht erweitert.
@@ -74,16 +55,6 @@ CREATE TABLE IF NOT EXISTS zweige (
     behind          INTEGER NOT NULL,               -- Commits hinter dem Default-Branch
     letzter_utc     TEXT,                           -- Datum des Zweigkopfs
     PRIMARY KEY (repo, name)
-) WITHOUT ROWID;
-
--- Sechster Umbau: Details je fremdem Repo, nur für die, die auf der Seite erscheinen können.
-CREATE TABLE IF NOT EXISTS fremde_detail (
-    repo            TEXT PRIMARY KEY,
-    release         TEXT,                           -- tag_name des letzten Releases
-    release_datum   TEXT,
-    readme          TEXT,                           -- erster Absatz, 300 Zeichen
-    hn              TEXT,                           -- JSON-Liste der Hacker-News-Treffer
-    gesehen         TEXT NOT NULL
 ) WITHOUT ROWID;
 
 -- CI und Sicherheitswarnungen je Repo (25.09.2026). Seit 03.10.2026 (Messvertrag, db.py NACHTRAEGE) tragen ci und sicherheit das Ergebnis

@@ -167,7 +167,7 @@
   },
   {
    "name": "gitpuls",
-   "zweck": "Eigene GitHub-Aktivität, Serverstand, fremde Repos nach Sternen",
+   "zweck": "Eigene GitHub-Aktivität, Serverstand",
    "link": "https://host-01.example.ts.net:8444/",
    "repo": "fernwerk-studio/gitpuls",
    "checkout": "/srv/gitpuls",
@@ -191,15 +191,6 @@
      "ergebnis": "success",
      "exit": 0,
      "naechster_utc": "2026-09-08T03:00:00Z"
-    },
-    {
-     "unit": "gitpuls-sterne",
-     "status": "inactive",
-     "gestartet_utc": "2026-09-08T01:15:00Z",
-     "letzter_utc": "2026-09-08T01:16:02Z",
-     "ergebnis": "success",
-     "exit": 0,
-     "naechster_utc": "2026-09-09T01:15:00Z"
     },
     {
      "unit": "gitpuls-deploy",

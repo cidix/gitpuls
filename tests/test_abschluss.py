@@ -257,7 +257,7 @@ def b10():
 
 # Treffer, die bleiben dürfen: die Units und die Beispieltabelle tragen /opt/gitpuls als markierten Beispielpfad.
 ERLAUBT = {"deploy/gitpuls-deploy.service": "/opt/gitpuls", "deploy/gitpuls-sammler.service": "/opt/gitpuls",
-           "deploy/gitpuls-server.service": "/opt/gitpuls", "deploy/gitpuls-sterne.service": "/opt/gitpuls", "tools/dienste.beispiel.json": "/opt/"}
+           "deploy/gitpuls-server.service": "/opt/gitpuls", "tools/dienste.beispiel.json": "/opt/"}
 
 
 @pruefung("c11", "Punkt 11 und 12: kein Name, keine Adresse, kein Host und kein Pfad des Autors im getrackten Code")

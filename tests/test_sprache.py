@@ -121,7 +121,7 @@ assert fr.returncode == 1 and "GITPULS_SPRACHE='fr' wird nicht unterstützt" in 
 compose = (WURZEL / "compose.example.yaml").read_text()
 assert "GITPULS_SPRACHE: ${GITPULS_SPRACHE:-en}" in compose, "compose.yaml reicht die Sprache durch"
 
-# ?lang übersteuert für einen Aufruf und behält ?ruhend, ?rueckblick und ?sterne, in beide Richtungen.
+# ?lang übersteuert für einen Aufruf und behält ?ruhend und ?rueckblick, in beide Richtungen.
 c = db.verbinden(schreibend=True)
 jetzt = datetime.now(timezone.utc)
 iso = lambda x: x.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -148,28 +148,27 @@ def hole(pfad, cookie=""):
 
 def stand(s):
     return {"lang": re.search(r'<html lang="(\w+)">', s).group(1), "ruhend_offen": '<details class="gruppe ruhend" open>' in s,
-            "rueckblick_90": '<div class="fenster" data-fenster="90">' in s[s.index('class="card rueckblick"'):s.index('class="card fremde"')],
-            "sterne_30": '<div class="fenster" data-fenster="30">' in s[s.index('class="card fremde"'):],
+            "rueckblick_90": '<div class="fenster" data-fenster="90">' in s[s.index('class="card rueckblick"'):s.index('</section>', s.index('class="card rueckblick"'))],
             "start": re.search(r'<h1><a href="([^"]*)">', s).group(1)}
 
 
 # Vorgabe hier de (GITPULS_SPRACHE der Tests): ?lang=en schaltet um, die übrigen Parameter wirken weiter.
-assert stand(hole("/?ruhend=offen&rueckblick=90&sterne=30")) == {"lang": "de", "ruhend_offen": True, "rueckblick_90": True, "sterne_30": True, "start": "/"}
-assert stand(hole("/?lang=en&ruhend=offen&rueckblick=90&sterne=30")) == {"lang": "en", "ruhend_offen": True, "rueckblick_90": True, "sterne_30": True, "start": "/?lang=en"}
-assert stand(hole("/?ruhend=offen&lang=en")) == {"lang": "en", "ruhend_offen": True, "rueckblick_90": False, "sterne_30": False, "start": "/?lang=en"}, stand(hole("/?ruhend=offen&lang=en"))
+assert stand(hole("/?ruhend=offen&rueckblick=90")) == {"lang": "de", "ruhend_offen": True, "rueckblick_90": True, "start": "/"}
+assert stand(hole("/?lang=en&ruhend=offen&rueckblick=90")) == {"lang": "en", "ruhend_offen": True, "rueckblick_90": True, "start": "/?lang=en"}
+assert stand(hole("/?ruhend=offen&lang=en")) == {"lang": "en", "ruhend_offen": True, "rueckblick_90": False, "start": "/?lang=en"}, stand(hole("/?ruhend=offen&lang=en"))
 assert stand(hole("/?lang=fr&ruhend=offen"))["lang"] == "de", "ein fremder Wert wird übergangen"
 # Umgekehrt: Vorgabe en, ?lang=de schaltet auf Deutsch, die Parameter bleiben.
 alt_std, web.STANDARD = web.STANDARD, "en"
 try:
     assert stand(hole("/?ruhend=offen"))["lang"] == "en"
-    assert stand(hole("/?lang=de&ruhend=offen&rueckblick=90")) == {"lang": "de", "ruhend_offen": True, "rueckblick_90": True, "sterne_30": False, "start": "/?lang=de"}
+    assert stand(hole("/?lang=de&ruhend=offen&rueckblick=90")) == {"lang": "de", "ruhend_offen": True, "rueckblick_90": True, "start": "/?lang=de"}
 finally:
     web.STANDARD = alt_std
 # Das Skript baut jede neue Adresse aus location.search: ein Reiter oder die Gruppe ändert ihren Parameter, lang bleibt stehen.
 assert web.SKRIPT.count("new URLSearchParams(location.search)") == 4 and "q.delete('lang')" not in web.SKRIPT
 
 # Ohne Sprachschalter (02.10.2026): Vorrang ?lang vor GITPULS_SPRACHE; ein Cookie lang wird weder gelesen noch gesetzt.
-assert stand(hole("/?ruhend=offen&rueckblick=90", "lang=en")) == {"lang": "de", "ruhend_offen": True, "rueckblick_90": True, "sterne_30": False, "start": "/"}, "Cookie wirkt nicht"
+assert stand(hole("/?ruhend=offen&rueckblick=90", "lang=en")) == {"lang": "de", "ruhend_offen": True, "rueckblick_90": True, "start": "/"}, "Cookie wirkt nicht"
 assert stand(hole("/?lang=en", "lang=de"))["lang"] == "en" and stand(hole("/?lang=fr", "lang=en"))["lang"] == "de", "fremder ?lang-Wert: die Umgebung gilt, nicht das Cookie"
 alt_std, web.STANDARD = web.STANDARD, "en"
 try:
@@ -227,4 +226,4 @@ web.LAUF.write_text(json.dumps({"start": iso(datetime.now(timezone.utc)), "phase
 assert json.loads(hole("/lauf/status?lang=en"))["phase"] == "checking CI and security"
 assert "fetch('/lauf/status?lang='+wurzel.lang" in web.SKRIPT
 print("ok: gleiche Schlüssel, alle benutzt; Rückfall mit Logzeile; Plural 0, 1, 2; Formate de und en; Vorgabe en, fr bricht ab;"
-      " ?lang in beide Richtungen mit ruhend, rueckblick, sterne; Vorrang ?lang, Umgebung, kein Cookie, kein Umschalter; Laufphase übersetzt")
+      " ?lang in beide Richtungen mit ruhend, rueckblick; Vorrang ?lang, Umgebung, kein Cookie, kein Umschalter; Laufphase übersetzt")

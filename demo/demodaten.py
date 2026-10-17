@@ -6,7 +6,7 @@ nie berührt. Zwei Szenen über denselben Commits: «busy» mit je einem Befund 
     python3 demo/demodaten.py <zielordner> [--szene busy|ruhig]
 
 Nichts zeigt auf das Konto des Autors, Kunden oder echte Domains: Adressen und Dienstlinks liegen unter .example (RFC 2606), der Hostname ist erfunden,
-ein Anbieter wird nicht genannt. Die Rangliste fremder Repos nennt nur erfundene Repos unter erfundenen Organisationen."""
+ein Anbieter wird nicht genannt."""
 import argparse
 import hashlib
 import json
@@ -253,7 +253,6 @@ def schreiben(ziel, szene="busy"):
             c.execute("INSERT INTO zweige (repo, name, ahead, behind, letzter_utc, kopf_sha) VALUES (?,?,?,?,?,?)",
                       (f"{KONTO}/{repo}", name, ahead, behind, utc(JETZT - alter), hashlib.sha1(name.encode()).hexdigest()))
 
-    sterne(c, rnd)
     c.commit()
     c.close()
 
@@ -275,40 +274,6 @@ def schreiben(ziel, szene="busy"):
     (ziel / "umgebung.json").write_text(json.dumps({"GITPULS_DB": str(dbpfad), "GITPULS_JETZT": JETZT.isoformat(), "TZ": ZONE.key,
                                                     "GITPULS_ADRESSEN": ADRESSE}, indent=1))
     return {"commits": len(commits), "repos": len(REPOS), "szene": szene}
-
-
-def sterne(c, rnd):
-    """Rangliste fremder Repos: erfundene Repos unter erfundenen Organisationen (auf GitHub am 09.10.2026 alle 404), jung genug für die Fenster 7, 30 und 90 Tage."""
-    heute = JETZT.date()
-    projekte = [  # Repo, Sprache, Alter in Tagen, Sterne heute, Zuwachs 7 Tage, Beschreibung, Topics, Lizenz, Release
-        ("quillmoss-labs/sifter", "Rust", 5, 4870, None, "A fast incremental linter for Python, written in Rust.", ["python", "linter", "rust"], "MIT", "0.0.9"),
-        ("tarnwick-oss/shellmate", "TypeScript", 6, 3920, None, "A coding assistant that lives in your terminal.", ["ai", "terminal", "typescript"], "MIT", "v0.4.1"),
-        ("velmora-dev/edgekit", "TypeScript", 3, 1640, None, "Deploy full-stack prototypes to your own edge account.", ["edge", "typescript", "serverless"], "MIT", None),
-        ("brackenfold/toolhub", "Go", 7, 1210, None, "A self-hosted registry for agent tool servers.", ["go", "registry", "agents"], "MIT", "v1.0.0"),
-        ("ostrava-tools/replaywright", "Python", 4, 2210, None, "Record browser sessions once, replay them as deterministic scripts.", ["python", "browser-automation", "testing"], "MIT", None),
-        ("pellucid-hq/termpilot", "TypeScript", 26, 21400, 6100, "An open-source agent that runs your dev tasks from the terminal.", ["ai", "cli", "typescript"], "Apache-2.0", "v0.9.0"),
-        ("corvane-io/devbox-base", "Dockerfile", 21, 3150, 900, "Base images for reproducible development containers.", ["docker", "devcontainer"], "MIT", None),
-        ("driftmark-labs/docmelt", "Python", 18, 4480, 1300, "Converts PDFs and office documents to clean Markdown.", ["python", "markdown", "documents"], "MIT", "v0.2.0"),
-        ("saltgrove-dev/astro-ledger", "TypeScript", 12, 1980, 1140, "Typed content collections backed by a local SQLite file.", ["astro", "typescript", "content"], "MIT", None),
-        ("pellucid-hq/hearth", "Go", 29, 9650, 2300, "A friendly TUI for running and watching background jobs.", ["go", "cli", "tui"], "MIT", "v0.7.2"),
-        ("ivelle-systems/motionkit", "TypeScript", 62, 6120, 410, "Animation utilities for utility-first CSS.", ["css", "animation", "typescript"], "MIT", "v1.3.0"),
-        ("thornbury-oss/flowgraph", "Python", 47, 2840, 260, "Graph-based control flow for Python agents.", ["python", "agents", "graphs"], "MIT", "v0.3.1"),
-        ("lunavale-dev/resume", "TypeScript", 71, 3370, 520, "Durable, resumable workflows for TypeScript.", ["typescript", "workflows"], "Apache-2.0", "v4.0.1"),
-        ("kelpwire-labs/islet-ui", "TypeScript", 83, 1460, 95, "Component library for island-based web apps.", ["typescript", "ui", "components"], "MIT", None),
-        ("ashcombe-dev/forgekit", "Swift", 88, 2120, 140, "A small, fast build system for Swift packages.", ["swift", "build-system"], "Apache-2.0", "0.6.2"),
-    ]
-    vor7 = (heute - timedelta(days=7)).isoformat()
-    for repo, sprache, alter, n, zuwachs, beschreibung, topics, lizenz, release in projekte:
-        erstellt = JETZT - timedelta(days=alter, hours=rnd.randint(1, 20))
-        erstmals = (erstellt + timedelta(days=1)).date()
-        c.execute("INSERT INTO fremde (repo, erstellt, sprache, beschreibung, gesehen, topics, issues, forks, lizenz) VALUES (?,?,?,?,?,?,?,?,?)",
-                  (repo, utc(erstellt), sprache, beschreibung, utc(JETZT - timedelta(hours=19)), json.dumps(topics), n // 40 + rnd.randint(3, 40), n // 9, lizenz))
-        c.execute("INSERT INTO sterne VALUES (?,?,?)", (repo, heute.isoformat(), n))
-        c.execute("INSERT INTO sterne VALUES (?,?,?)", (repo, erstmals.isoformat(), max(40, n // (alter + 2))))
-        if zuwachs is not None and erstmals.isoformat() < vor7:
-            c.execute("INSERT INTO sterne VALUES (?,?,?)", (repo, vor7, n - zuwachs))
-        c.execute("INSERT INTO fremde_detail (repo, release, release_datum, readme, hn, gesehen) VALUES (?,?,?,?,?,?)",
-                  (repo, release, (heute - timedelta(days=max(1, alter // 3))).isoformat() if release else None, beschreibung, "[]", utc(JETZT - timedelta(hours=19))))
 
 
 def server(dienst_deploy):
@@ -349,11 +314,10 @@ def server(dienst_deploy):
          "container": [container("notes-sync-1", f"notes-sync:{dienst_deploy[f'{KONTO}/notes-sync']['tag']}", JETZT - timedelta(days=1, hours=23))],
          "timer": [timer("notes-sync-pull", JETZT.replace(minute=30, second=6), JETZT.replace(minute=45))],
          "deploy": dienst_deploy[f"{KONTO}/notes-sync"]},
-        {"name": "gitpuls", "zweck": "This dashboard: GitHub activity, server state, rising repos", "link": "https://gitpuls.fernwerk-studio.example/",
+        {"name": "gitpuls", "zweck": "This dashboard: GitHub activity and server state", "link": "https://gitpuls.fernwerk-studio.example/",
          "repo": None, "checkout": "/srv/gitpuls", "zeilen": [],
          "container": [container("gitpuls-gitpuls-1", "gitpuls:4e1b7d2", JETZT - timedelta(days=3, hours=5))],
          "timer": [timer("gitpuls-sammler", JETZT - timedelta(minutes=5, seconds=19), stunde + timedelta(hours=1, minutes=34), 41),
-                   timer("gitpuls-sterne", JETZT.replace(hour=3, minute=16), JETZT.replace(hour=3, minute=15) + timedelta(days=1), 62),
                    timer("gitpuls-server", JETZT - timedelta(minutes=2), JETZT + timedelta(minutes=3), 1)],
          "deploy": {"tag": "4e1b7d2", "origin_main": "4e1b7d2", "hinter": 0, "bildrelevant": 0, "commits": [], "gemessen": z(minutes=10)}},
     ]

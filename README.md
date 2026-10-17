@@ -29,7 +29,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/full-page-dark.png">
-  <img alt="The whole page from top to bottom with demo data: the server zone with services and four cards, the GitHub zone with summary sentence and three tiles, needs attention, the project list, history, other repos by stars and the footer" src="docs/screenshots/full-page-light.png">
+  <img alt="The whole page from top to bottom with demo data: the server zone with services and four cards, the GitHub zone with summary sentence and three tiles, needs attention, the project list, history and the footer" src="docs/screenshots/full-page-light.png">
 </picture>
 
 *All images come from the bundled demo data (`demo/demodaten.py`); all names are invented.*
@@ -72,12 +72,6 @@ One row per repository with its commits, a 30-day sparkline and its findings; a 
 Commits per day over 7, 30, 60 or 90 days or since the start, with streaks and records.
 
 <img alt="History card: commits per day over the last 30 days with their average, the longest streak, the best day, the best week and the rank of the current week" src="docs/screenshots/history.png">
-
-### Rising repositories
-
-Young public repositories that gain stars fastest, over 7, 30 or 90 days.
-
-<img alt="Ranking of young public repositories over 7 days: stars per day, stars, language, first seen and age in days" src="docs/screenshots/rising-repos.png">
 
 ### On a phone
 
@@ -134,9 +128,8 @@ Without Actions or Dependabot alerts the dashboard shows "not measured" for thos
 | `GITPULS_HOSTS` | empty | Allowed host names in the Host header, comma separated (e.g. your reverse proxy name). Loopback is always allowed; any other host gets 421. |
 | `GITPULS_TOKENDATEI` | `./github.env` | File with `GITHUB_TOKEN=...`. |
 | `GITPULS_VOLUME` | `gitpuls-daten` | Docker volume for the database. |
-| `GITPULS_TAKT_MIN` | `60` | Collector interval inside the container in minutes; the star ranking runs once a day and catches up after a missed day. `0` disables it; a negative, infinite or non-numeric value stops the start with an error. |
-| `GITPULS_STACK` | empty | Your languages and topics for the ranking of rising repositories, comma separated. |
-| `GITPULS_TAG` | `1.0.4` | Image tag. The footer shows the version built into the image; an image built from source shows this tag instead. |
+| `GITPULS_TAKT_MIN` | `60` | Collector interval inside the container in minutes. `0` disables it; a negative, infinite or non-numeric value stops the start with an error. |
+| `GITPULS_TAG` | `1.1.0` | Image tag. The footer shows the version built into the image; an image built from source shows this tag instead. |
 | `GITPULS_DIENSTE` | `tools/dienste.json` | Service table for the server zone (example: `tools/dienste.beispiel.json`). Service names must be unique; an invalid entry is shown as "not measured" and affects only itself. |
 | `GITPULS_PRODUKT` | empty | Product line of the machine shown in the server zone. |
 | `GITPULS_SERVER_ZIEL`, `GITPULS_DEPLOY_ZIEL` | in the volume | Where the host scripts write `server.json` and `deploy.json`. |
@@ -161,7 +154,6 @@ To use an existing volume that `docker compose down -v` must not remove, create 
 - A commit is counted once, in the repository where it was first seen.
 - The server zone covers firewall rules from iptables and pending updates from apt only (Debian, Ubuntu). Whether the rules survive a reboot is measured for iptables-persistent only; with ufw or nftables.service it shows "not measured". On a host with nftables and without iptables the rules themselves are "not measured".
 - `tools/server-stand` reads containers through the `docker` CLI. With rootless Docker, set `DOCKER_HOST` (e.g. `unix:///run/user/1000/docker.sock`) and `GITPULS_SERVER_ZIEL` (the volume's mount point from `docker volume inspect gitpuls-daten`, plus `/server.json`) in `.env`. With Podman, set `GITPULS_SERVER_ZIEL` the same way and install `podman-docker`; without it, containers show "not measured".
-- The search API behind the ranking returns at most 1000 repositories per window.
 
 ## Status
 
@@ -189,7 +181,7 @@ git pull
 docker compose pull && docker compose up -d   # or: docker compose build && docker compose up -d
 ```
 
-Read `CHANGELOG.md` before upgrading; breaking changes only come with a new major version. All data is one SQLite file in the volume (`/data/gitpuls.db`). It can be rebuilt from GitHub at any time (`docker compose run --rm gitpuls python -m app.sammler --alles`); to keep the history of the star ranking, copy the file while no collector runs, e.g. `docker compose cp gitpuls:/data/gitpuls.db ./backup.db`.
+Read `CHANGELOG.md` before upgrading; breaking changes only come with a new major version. All data is one SQLite file in the volume (`/data/gitpuls.db`). It can be rebuilt from GitHub at any time (`docker compose run --rm gitpuls python -m app.sammler --alles`).
 
 </details>
 

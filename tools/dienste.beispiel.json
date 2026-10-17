@@ -2,7 +2,7 @@
   "_": "Beispiel der Diensttabelle für tools/server-stand und tools/deploy-stand.sh (10.10.2026, Audit S16). Die eigene Tabelle liegt unversioniert als tools/dienste.json daneben oder dort, wohin GITPULS_DIENSTE in der .env zeigt; ohne Tabelle zeigt die Serverzone keine Dienste. Je Dienst: name (Anzeigename und Schlüssel des Deploy-Stands in deploy.json, je Dienst eindeutig; zwei Dienste eines Repos, etwa Produktion und Staging, heissen verschieden), zweck und zeilen (Angaben des Betreibers, nicht übersetzt), link, repo (owner/name auf GitHub, für Deploy-Abstand und Projektzuordnung; leer heisst kein Deploy-Abstand), checkout (Pfad des Klons auf dem Host), container (Namen wie in docker ps; der erste trägt den Deploy-Tag) und timer (systemd-Units ohne .timer). Reihenfolge = Reihenfolge auf der Seite. Ein Dienst ohne Timer ist gesund, solange seine Container laufen.",
   "dienste": [
     {"name": "gitpuls", "zweck": "GitHub-Aktivität und Serverstand", "link": "http://127.0.0.1:8789/", "repo": "beispiel/gitpuls", "checkout": "/opt/gitpuls",
-     "container": ["gitpuls-gitpuls-1"], "timer": ["gitpuls-sammler", "gitpuls-sterne", "gitpuls-deploy", "gitpuls-server"]},
+     "container": ["gitpuls-gitpuls-1"], "timer": ["gitpuls-sammler", "gitpuls-deploy", "gitpuls-server"]},
     {"name": "Website", "zweck": "Statische Seite hinter einem Proxy", "link": "https://www.example.org/", "repo": "beispiel/website", "checkout": "/opt/website",
      "container": ["website-web-1"], "timer": [], "zeilen": ["Zertifikat erneuert der Proxy"]}
   ]

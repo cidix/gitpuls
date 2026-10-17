@@ -49,15 +49,6 @@ def c1():
     except github.GitHubFehler as e:
         assert not e.global_, "betrifft nur das Repo der Anfrage"
     github.holen = lambda pfad, params=None, leer_bei_409=False: (None, {})
-    from app import sterne
-    for wert in (None, "", 0):
-        github.holen = lambda pfad, params=None, leer_bei_409=False, w=wert: (w, {})
-        try:
-            sterne.release("o/x")
-            raise AssertionError((wert, "eine Antwort ohne Objekt ist kein «kein Release»"))
-        except sterne.Unbekannt:
-            pass
-    github.holen = lambda pfad, params=None, leer_bei_409=False: (None, {})
     for aufruf in (lambda: sammler.dateien_eines("o/a", "abc"),):
         try:
             aufruf()

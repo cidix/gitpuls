@@ -58,7 +58,7 @@ def _token():
 # Warten am Ratenlimit (10.10.2026): der Sammler setzt hier das monotone Ende seiner Frist. Erreicht eine Anfrage das Limit (403 oder 429 mit
 # X-RateLimit-Remaining 0, Retry-After oder «rate limit»), wartet holen bis zum Reset und fragt erneut, solange das mit RESERVE_S Luft in die
 # Frist passt; sonst endet der Lauf mit dem globalen Fehler, das Geholte ist festgeschrieben, und der nächste Lauf setzt fort. Ohne Frist
-# (Sternlauf, Tests) wird nicht gewartet. Vorher endete jeder Lauf am Limit, und ein Konto mit rund 5000 Anfragen wurde nie fertig.
+# (Tests) wird nicht gewartet. Vorher endete jeder Lauf am Limit, und ein Konto mit rund 5000 Anfragen wurde nie fertig.
 FRIST_ENDE = None
 RESERVE_S = 30
 

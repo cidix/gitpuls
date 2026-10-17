@@ -117,7 +117,7 @@ assert {wort!r} in h[i:i + 200] and 'title="docker fehlt"' in h[i:i + 200], h[i:
         assert r.returncode == 0, (sprache, r.stderr[-500:])
 
 
-@pruefung("s8", "S8/S15/S16/S23: Zielpfad, Produkt (Vorgabe leer), Diensttabelle und Stack kommen aus Einstellungen")
+@pruefung("s8", "S8/S15/S16: Zielpfad, Produkt (Vorgabe leer) und Diensttabelle kommen aus Einstellungen; ein gesetztes GITPULS_STACK aus 1.0 bricht den Start nicht")
 def s8():
     ziel = os.path.join(tempfile.mkdtemp(), "server.json")
     os.environ.update(GITPULS_SERVER_ZIEL=ziel, GITPULS_DIENSTE=str(WURZEL / "tools" / "dienste.beispiel.json"))
@@ -130,8 +130,8 @@ def s8():
     assert d["maschine"]["produkt"] == "", d["maschine"]["produkt"]
     assert [x["name"] for x in d["dienste"]] == [x["name"] for x in json.loads((WURZEL / "tools" / "dienste.beispiel.json").read_text())["dienste"]]
     assert not versioniert and "tools/dienste.json" in (WURZEL / ".gitignore").read_text(), "die eigene Tabelle ist nicht versioniert"
-    _, web = umgebung(GITPULS_STACK="Rust, Go")
-    assert web.STACK == ("rust", "go"), web.STACK
+    _, web = umgebung(GITPULS_STACK="Rust, Go")   # entfallen mit 1.1.0, wird übergangen
+    assert not hasattr(web, "STACK") and "<html" in web.seite()
 
 
 @pruefung("s16", "S16: deploy-stand nimmt den Default-Branch je Dienst, überspringt Dienste ohne Container, Tag ohne Commit ist nicht gemessen")
@@ -346,7 +346,7 @@ def s14():
     assert k["messung"] and "veraltet" in k["messung"][0][1], k["messung"]
 
 
-@pruefung("s7", "S7: compose.yaml läuft lokal (Volume, Tokendatei, Port aus Einstellungen), Takt im Container holt den Sternlauf nach")
+@pruefung("s7", "S7: compose.yaml läuft lokal (Volume, Tokendatei, Port aus Einstellungen), Takt im Container startet den Sammellauf")
 def s7():
     text = (WURZEL / "compose.example.yaml").read_text()
     for teil in ("${GITPULS_TOKENDATEI:-./github.env}", "name: ${GITPULS_VOLUME:-gitpuls-daten}",
@@ -356,15 +356,17 @@ def s7():
     # Kein interpolierter external-Wert taugt für Docker Compose und podman-compose zugleich (Probe Podman 11.10.2026)
     assert not any(z.strip().startswith("external:") for z in text.splitlines()), "external gehört in compose.override.yaml"
     assert "GITPULS_VOLUME_EXTERN" not in (WURZEL / ".env.example").read_text(), ".env.example: GITPULS_VOLUME_EXTERN entfernen"
-    db, web = umgebung()
-    heute = date(2026, 10, 10)
-    gestartet, sterne = [], []
-    assert web.takt_schritt(heute, lambda: gestartet.append(1), lambda: sterne.append(1)) and sterne == [1], "ohne Sternstand: nachholen"
-    c = db.verbinden(schreibend=True)
-    c.execute("INSERT INTO sterne VALUES ('o/x', '2026-10-09', 5)"); c.commit()
-    assert web.takt_schritt(heute, lambda: gestartet.append(1), lambda: sterne.append(1)) and len(sterne) == 2, "gestern verpasst: heute nachholen"
-    c.execute("INSERT INTO sterne VALUES ('o/x', '2026-10-10', 6)"); c.commit()
-    assert not web.takt_schritt(heute, lambda: gestartet.append(1), lambda: sterne.append(1)) and len(sterne) == 2 and len(gestartet) == 3
+    _, web = umgebung()
+    gestartet = []
+    web.lauf_starten = lambda: gestartet.append(1)
+    def halt(_):
+        raise KeyboardInterrupt
+    web.time.sleep = halt
+    try:
+        web.takt()
+    except KeyboardInterrupt:
+        pass
+    assert gestartet == [1], gestartet
 
 
 @pruefung("s6", "S6: deploy/github.env.beispiel nennt alle nötigen Rechte")
@@ -484,7 +486,7 @@ def b4():
 def s5():
     umgebung()
     from urllib.parse import parse_qs, urlsplit
-    from app import github, sammler, sterne
+    from app import github, sammler
     urls = []
     class Antwort:
         headers = {}
@@ -504,11 +506,6 @@ def s5():
     sammeln(sammler, github, welt, protokoll)
     vergleich = [p[1] for p in protokoll if p[0] == "holen" and "/compare/" in p[1]]
     assert vergleich and "fix%2342" in vergleich[0] and "#" not in vergleich[0], vergleich
-    gesehen = []
-    sterne.github.holen = lambda pfad, params=None, leer_bei_409=False: (gesehen.append(params), ({"total_count": 0, "items": []}, {}))[1]
-    with sterne.db.verbinden(schreibend=True) as c:
-        sterne.fenster(c, date(2026, 10, 10), 7)
-    assert gesehen[0]["q"] == "created:>2026-10-03 stars:>500", ("roh, holen kodiert", gesehen[0]["q"])
     seiten = iter([([], {"Link": '<https://api.github.com/x?after=Y3Vy%3D&per_page=100>; rel="next"'}), ([], {})])
     nach = []
     sammler.github.holen = lambda pfad, params=None, leer_bei_409=False: (nach.append(dict(params)), next(seiten))[1]
@@ -626,48 +623,6 @@ def s20():
     assert "Heute wieder aktiv" not in h and "heute wieder aktiv" not in h, re.sub(r"<[^>]+>", " ", h[h.index('<div class="lage">'):][:600])
 
 
-def fremde_daten(db, sterne_tag="2026-10-10"):
-    c = db.verbinden(schreibend=True)
-    for repo, erstellt, n in (("x/schnell-utc", "2026-10-08T12:00:00Z", 300), ("x/jung", "2026-10-09T00:30:00Z", 170)):
-        c.execute("INSERT INTO fremde (repo, erstellt, sprache, beschreibung, gesehen) VALUES (?,?,?,?,?)", (repo, erstellt, "Go", "Ein Werkzeug", sterne_tag))
-        c.execute("INSERT INTO sterne VALUES (?,?,?)", (repo, sterne_tag, n))
-    c.commit()
-    return c
-
-
-@pruefung("s21", "S21: Auswahl der Details im Sternlauf und Anzeige rechnen das Alter gleich")
-def s21():
-    db, web = umgebung()
-    from app import sterne
-    c = fremde_daten(db)
-    sterne.DETAIL_JE_FENSTER = 1
-    sterne.release = lambda repo: ("v1", "2026-10-01")
-    sterne.readme_absatz = lambda repo: None
-    sterne.hacker_news = lambda repo: []
-    sterne.details(c, date(2026, 10, 10))
-    c.commit()
-    mit_details = {r[0] for r in c.execute("SELECT repo FROM fremde_detail")}
-    _, listen = web.ranglisten(*([c] if web.ranglisten.__code__.co_argcount == 1 else [c, date(2026, 10, 10)]))
-    erster = listen[7][0][2]["repo"]
-    assert erster in mit_details, (erster, mit_details)
-
-
-@pruefung("s22", "S22: ein nie abgefragtes Release heisst nicht «kein Release», ein alter Wert nach gescheitertem Neuabruf trägt sein Datum")
-def s22():
-    db, web = umgebung()
-    c = fremde_daten(db)
-    c.execute("INSERT INTO fremde_detail (repo, release, release_datum, readme, hn, gesehen) VALUES ('x/jung', 'v2', '2026-09-30', NULL, '[]', '2026-10-07')")
-    c.commit()
-    h = web.seite(jetzt=datetime(2026, 10, 10, 12, 0, tzinfo=web.TZ))
-    i = h.index('<section class="card fremde">')
-    tab = h[i:h.index('</section>', i)]
-    zeile = tab[tab.index("x/schnell-utc"):]
-    zeile = zeile[:zeile.index("</details>")]
-    assert "kein Release" not in zeile, zeile[-400:]
-    jung = tab[tab.index('github.com/x/jung'):]
-    assert "Details vom 07.10.2026" in jung[:jung.index("</details>")], jung[:800]
-
-
 @pruefung("s26", "S26: die Load heisst Last und wird nicht als Belegung der Kerne erklärt")
 def s26():
     for sprache, wort, falsch in (("de", ">Last</span>", "Kerne sind im Mittel belegt"), ("en", ">Load</span>", "cores are busy")):
@@ -700,7 +655,7 @@ def s27():
     srv, adr = server_starten(web)
     erste_wartet, weiter = threading.Event(), threading.Event()
     zaehler = {"rb": 0, "fr": 0}
-    echt_rb, echt_fr = web.rueckblick_block, web.fremde_block
+    echt_rb, echt_fr = web.rueckblick_block, web.fusszeile
     def rb(*a):
         zaehler["rb"] += 1
         if zaehler["rb"] == 1:
@@ -712,7 +667,7 @@ def s27():
             erste_wartet.set()
             weiter.wait(10)
         return echt_fr(*a)
-    web.rueckblick_block, web.fremde_block = rb, fr
+    web.rueckblick_block, web.fusszeile = rb, fr
     ergebnis = {}
     def holen(name):
         try:

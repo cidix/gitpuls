@@ -3,7 +3,7 @@ zuletzt gearbeitet, was ruht, und wo läuft etwas anderes als das, was im Repo s
 Serverseitig gerendert, kein Framework.
 
 GET /          Serverstand (Lagesatz, Maschine, Dienste, Installiert, Updates), dann GitHub:
-               Kennzahlen mit Zweigbefunden, drei rollende Zahlen, Projekte nach letztem Commit, Rückblick, fremde Repos
+               Kennzahlen mit Zweigbefunden, drei rollende Zahlen, Projekte nach letztem Commit, Rückblick
 GET /gesund    baut die Seite auf: 200 «ok», 503 «blockfehler: …», sobald ein Block seine Fehlerzeile trägt (seit d7f58c0);
                eine unlesbare Datenbank bricht vor den Blöcken ab und ergibt 500
 POST /lauf     startet den Sammler als Unterprozess (202); 409 läuft schon, 429 Sperrfrist 60 s
@@ -263,35 +263,16 @@ def lauf_starten():
 
 # Takt im Container (10.10.2026, Audit S7), die Alternative zu den Host-Timern für Rechner ohne systemd, etwa einen Laptop: mit
 # GITPULS_TAKT_MIN über 0 startet der Webprozess den Sammler alle so viele Minuten wie der Knopf (lauf_starten, also mit Sperre und
-# Sperrfrist) und den Sternlauf, sobald für den heutigen Tag keiner gelaufen ist; einen verpassten Tag holt der erste Takt danach nach.
-# 0 schaltet ihn ab, die eigene Instanz läuft mit den Host-Timern.
+# Sperrfrist). 0 schaltet ihn ab, die eigene Instanz läuft mit den Host-Timern.
 TAKT_MIN = db.zahl("GITPULS_TAKT_MIN", 0.0)
 # Bindadresse im Container 0.0.0.0, veröffentlicht wird nur 127.0.0.1 (compose.yaml); eine lokale Instanz ohne Container setzt 127.0.0.1.
 BIND = os.environ.get("GITPULS_BIND") or "0.0.0.0"
 
 
-def sternlauf_faellig(heute):
-    """Ist für `heute` noch kein Sternstand geschrieben? Auch ohne lesbare Datenbank: dann holt der Lauf sie an."""
-    try:
-        with db.verbinden() as c:
-            return (c.execute("SELECT MAX(tag) FROM sterne").fetchone()[0] or "") < heute.isoformat()
-    except sqlite3.Error:
-        return True
-
-
-def takt_schritt(heute, sammeln=None, sterne=None):
-    """Ein Takt: der Sammellauf wie per Knopf, dazu der Sternlauf, wenn er heute noch fehlt. Liefert, ob der Sternlauf lief."""
-    (sammeln or lauf_starten)()
-    if not sternlauf_faellig(heute):
-        return False
-    (sterne or (lambda: subprocess.run([sys.executable, "-m", "app.sterne"], timeout=KNOPF_GRENZE_S)))()
-    return True
-
-
 def takt():
     while True:
         try:
-            takt_schritt(db.jetzt(TZ).date())
+            lauf_starten()
         except Exception:   # noqa: BLE001, der Takt darf nie sterben
             traceback.print_exc()
         time.sleep(TAKT_MIN * 60)
@@ -360,8 +341,8 @@ knoepfe.forEach(function(b){b.addEventListener('click',function(){var w=b.datase
   zeigeModus();});});
 mq.addEventListener('change',zeigeModus);
 zeigeModus();
-// Reiter der Rangliste (?sterne=) und des Rückblicks (?rueckblick=): je Leiste nur die Fenster ihres Abschnitts,
-// und die Adresse behält den Parameter der anderen Leiste. Die Vorgabe steht ohne Parameter in der Adresse.
+// Reiter des Rückblicks (?rueckblick=): die Leiste schaltet nur die Fenster ihres Abschnitts, die übrigen Parameter der Adresse
+// bleiben. Die Vorgabe steht ohne Parameter in der Adresse.
 // Seit 30.09.2026 merkt sich eine Leiste mit data-speicher (Rückblick) die Wahl im localStorage; der Parameter in der Adresse geht vor.
 document.querySelectorAll('.reiter').forEach(function(nav){
   var reiter=nav.querySelectorAll('button'),fenster=nav.parentNode.querySelectorAll('.fenster');
@@ -1087,89 +1068,6 @@ def seit_text(tage):
     return t("seit", tage)
 
 
-# Der eigene Stack für «Warum es hier steht» (10.10.2026, Audit S23): aus GITPULS_STACK, durch Komma getrennt, Vorgabe leer. Vorher stand
-# hier der Stack des Autors fest im Code.
-STACK = tuple(x.strip().lower() for x in os.environ.get("GITPULS_STACK", "").split(",") if x.strip())
-
-
-def erster_satz(text, n=180):
-    """Der erste Satz eines README-Absatzes. Badges, Bilder, reine Linkzeilen, Blockzitate und Callouts fallen
-    schon beim Sternlauf weg (app/sterne.py::readme_absatz), hier wird nur noch auf einen Satz gekürzt.
-    Ein Satz endet erst, wo auf den Punkt ein Grossbuchstabe oder eine Zahl folgt: «i. am. speed.» ist ein Satz
-    und keine drei, und ein Punkt nach einer Abkürzung ist kein Satzende (gemessen an einem echten README)."""
-    # Blockzitat und Callout stehen im README oft ohne Leerzeile im selben Absatz und überleben deshalb den
-    # Absatzfilter des Sternlaufs; gemessen am 20.09.2026 an browser-use/jev-ultrafast: «i. am. speed. >
-    # [!IMPORTANT] > Die Cloud-Warteliste ist offen …». Ab dem ersten «>» oder «[!» ist es Werbung, kein Satz.
-    t = re.split(r"\s>\s|\[!", (text or "").strip())[0].replace("**", "").replace("__", "").strip(" >*_`")
-    m = re.search(r"[.!?]+(?=\s+[A-ZÄÖÜ0-9])", t)
-    satz = (t[: m.end()] if m else t).strip()
-    return satz if len(satz) <= n else satz[: n - 1].rstrip(" ,;:") + "…"
-
-
-def was_es_ist(r):
-    """«Was es ist»: GitHub-Beschreibung und der erste echte README-Satz, in eigener Reihenfolge und ohne den
-    Marketington des übernommenen Absatzes. Kein Modellaufruf, alles aus Daten, die der Sternlauf ohnehin holt."""
-    teile = [t for t in ((r["beschreibung"] or "").strip(), erster_satz(r["readme"])) if t]
-    # Viele README beginnen mit der Beschreibung; dann steht sie einmal da. Die Untergrenze von 15 Zeichen hält
-    # kurze Beschreibungen wie «CLI» davon ab, einen ganzen Satz zu verschlucken, der zufällig so anfängt.
-    if len(teile) == 2 and (teile[0] == teile[1] or (len(teile[0]) >= 15 and teile[1].lower().startswith(teile[0][:30].lower()))):
-        teile.pop()
-    # Die Beschreibung ist meist ein Titelstück ohne Satzzeichen; ohne Punkt liefe sie in den README-Satz hinein
-    # («The Photoshop alternative for Mac Adobe Photoshop costs too much …»).
-    if len(teile) == 2 and teile[0][-1] not in ".!?:;":
-        teile[0] += "."
-    return " ".join(teile) or t("fr.keine_beschreibung")
-
-
-def warum_es_hier_steht(r, topics, tempo, alter, eigene):
-    """«Warum es hier steht»: die konkrete Übereinstimmung im Klartext statt des Chips «passt zu meinem Stack».
-    Sprache mit der Zahl der eigenen Repos darin, die Topics, die auf den eigenen Stack treffen, dazu Tempo und
-    Alter, die die Rangfolge machen. `eigene` ist die Zählung der eigenen Repos je Sprache, kleingeschrieben."""
-    sp = r["sprache"]
-    n = eigene.get((sp or "").lower(), 0)
-    teile = [t("fr.eigene", sp, n) if sp else t("fr.keine_sprache")]
-    treffer = [t for t in topics if t.lower() in STACK]
-    if treffer:
-        teile.append(t("fr.topics", ", ".join(treffer[:4])))
-    teile.append(t("fr.je_tag", fmt.dezimal(tempo)))
-    teile.append(t("fr.tage_alt", alter))
-    return " · ".join(teile)
-
-
-def eigene_sprachen(c):
-    """Die eigenen, noch gelisteten Repos je Sprache, kleingeschrieben. Eine Abfrage, kein neuer Schlüssel."""
-    return {s.lower(): n for s, n in c.execute("SELECT sprache, COUNT(*) FROM repos WHERE gesehen >= ? GROUP BY sprache", (karenzgrenze(c),)) if s}
-
-
-def alter_tage(erstellt, tag):
-    """Alter eines fremden Repos in Kalendertagen der Systemzone am Tag `tag`, mindestens 1."""
-    return max(1, (tag - datum(erstellt)).days)
-
-
-def bewertet(c, tag, tage):
-    """Die fremden Repos eines Fensters (erstellt in den `tage` Tagen vor `tag`) mit dem Sternstand von `tag`, nach Sternen je Tag, bei
-    Gleichstand nach Name: [(Tempo, Alter, Zeile)]. Eine Rangfolge für die Anzeige und die Auswahl der Details im Sternlauf
-    (app/sterne.py::details), seit 10.10.2026 (Audit S21): vorher rechneten die zwei das Alter verschieden."""
-    zeilen = c.execute("""SELECT f.repo, s.sterne, f.sprache, f.beschreibung, f.erstellt, f.topics, f.issues, f.forks, f.lizenz,
-               s.sterne - v.sterne AS zuwachs,
-               (SELECT MIN(tag) FROM sterne x WHERE x.repo = f.repo) AS erstmals,
-               d.release, d.release_datum, d.readme, d.hn, d.ungemessen, d.gesehen AS detail_gesehen
-        FROM fremde f JOIN sterne s ON s.repo = f.repo AND s.tag = ?
-        LEFT JOIN sterne v ON v.repo = f.repo AND v.tag = ?
-        LEFT JOIN fremde_detail d ON d.repo = f.repo
-        WHERE f.erstellt >= ?""", (tag.isoformat(), (tag - timedelta(days=7)).isoformat(), (tag - timedelta(days=tage)).isoformat())).fetchall()
-    aus = [(r["sterne"] / alter_tage(r["erstellt"], tag), alter_tage(r["erstellt"], tag), r) for r in zeilen]
-    return sorted(aus, key=lambda x: (-x[0], x[2]["repo"]))
-
-
-def ranglisten(c):
-    """Je Fenster die zehn nach Sternen je Tag (GitHubs Massstab: Tempo, nicht Bestand), gerechnet auf den Tag des jüngsten Sternlaufs."""
-    juengster = c.execute("SELECT MAX(tag) FROM sterne").fetchone()[0]
-    if not juengster:
-        return None, {}
-    return juengster, {tage: bewertet(c, date.fromisoformat(juengster), tage)[:10] for tage in (7, 30, 90)}
-
-
 def ez(n, eins, mehr):
     return f"{n} {eins if n == 1 else mehr}"
 
@@ -1177,55 +1075,6 @@ def ez(n, eins, mehr):
 def kuerzen(s, n=80):
     s = (s or "").strip()
     return s if len(s) <= n else s[: n - 1].rstrip() + "…"
-
-
-def tabelle_fremde(zeilen, heute, eigene=None, stand=None):
-    """Eine aufklappbare Zeile je Repo: Kopfzeile als Raster, Detail darunter. Das Detail beginnt seit dem
-    20.09.2026 mit zwei Zeilen in eigenen Worten («Was es ist», «Warum es hier steht») statt mit dem übernommenen
-    README-Absatz und dem Beschreibungsblock: der Absatz ist Marketingtext der Autoren und beantwortet keine der
-    beiden Fragen. Ordnung wie in den Fussblöcken: Beschriftung gedämpft, Wert in Textfarbe (mz). `stand` ist der Tag des jüngsten
-    Sternlaufs: Details von einem früheren Tag (Neuabruf gescheitert) tragen ihr Datum."""
-    eigene = eigene or {}
-    if not zeilen:
-        return f'<p class="muted">{t("fr.leer")}</p>'
-    kopf = (f'<div class="frow kopf muted"><span>{t("fr.repo")}</span><span class="num" title="{html.escape(t("fr.tempo_title"))}">{t("fr.tempo")}</span>'
-            f'<span class="num">{t("fr.sterne")}</span><span class="num" title="{html.escape(t("fr.zuwachs_title"))}">{t("fr.zuwachs")}</span>'
-            f'<span>{t("fr.sprache")}</span><span class="num">{t("fr.erstmals")}</span><span class="num">{t("fr.alter")}</span></div>')
-    out = [kopf]
-    for tempo, alter, r in zeilen:
-        topics = json.loads(r["topics"] or "[]")
-        # Vorzeichen einmal: f"+{...}" machte aus -476 ein "+-476" (gemessen 11.09.2026 im 30-Tage-Fenster)
-        zuwachs = (fmt.zahl(r["zuwachs"], vorzeichen=True) if r["zuwachs"] else "0") if r["zuwachs"] is not None else ""
-        hn = json.loads(r["hn"]) if r["hn"] and r["hn"] != "null" else []
-        # Messvertrag (03.10.2026): ungemessen nennt Felder ohne bekannten Wert; hn NULL oder «null» bei vorhandener Detailzeile ist
-        # ein gescheiterter Abruf. Beides heisst «nicht gemessen», nie «kein Release» oder «keine Diskussion».
-        ungemessen = set((r["ungemessen"] or "").split(","))
-        was = was_es_ist(r)   # Beschreibung und README-Satz sind Daten des Repos, der Ersatzsatz ist Oberfläche
-        if was == t("fr.keine_beschreibung") and "readme" in ungemessen:   # ohne README-Abruf ist «trägt keinen Satz» nicht belegt
-            was = t("dn.nicht_gemessen")
-        detail = [mz(t("fr.was"), html.escape(was) if was in (t("fr.keine_beschreibung"), t("dn.nicht_gemessen")) else f'<span translate="no">{html.escape(was)}</span>'),
-                  mz(t("fr.warum"), html.escape(warum_es_hier_steht(r, topics, tempo, alter, eigene)))]
-        if topics:
-            detail.append('<p class="chips" translate="no">' + "".join(f'<span class="chip">{html.escape(x)}</span>' for x in topics[:12]) + "</p>")
-        fakten = [t("fr.issues", fmt.zahl(r["issues"])) if r["issues"] is not None else None,
-                  t("fr.forks", fmt.zahl(r["forks"])) if r["forks"] is not None else None,
-                  t("fr.lizenz", html.escape(r["lizenz"])) if r["lizenz"] else t("fr.keine_lizenz"),
-                  t("fr.release", html.escape(r["release"]), date.fromisoformat(r["release_datum"]) if r["release_datum"] else None) if r["release"]
-                  # Ohne Detailzeile ist der Release nie abgefragt (Audit S22), das ist kein «kein Release».
-                  else t("fr.release_ungemessen") if "release" in ungemessen or r["detail_gesehen"] is None else t("fr.kein_release"),
-                  # Ein gescheiterter Neuabruf lässt den alten Wert stehen (Messvertrag 03.10.2026); seit 10.10.2026 steht sein Alter dabei.
-                  t("fr.details_vom", date.fromisoformat(r["detail_gesehen"])) if r["detail_gesehen"] and stand and r["detail_gesehen"] < stand else None]
-        detail.append('<p class="muted fakten">' + " · ".join(f for f in fakten if f) + "</p>")
-        if hn:
-            detail.append('<ul class="hn">' + "".join(f'<li><a href="{html.escape(h["link"])}">{html.escape(h["titel"] or "")}</a> <span class="muted">{t("fr.hn", fmt.zahl(h["punkte"]), fmt.zahl(h["kommentare"]))}</span></li>' for h in hn) + "</ul>")
-        elif r["detail_gesehen"] is not None:   # eine Detailzeile gibt es; ohne sie steht nichts da wie bisher
-            detail.append(f'<p class="muted">{t("fr.keine_hn") if r["hn"] and r["hn"] != "null" else t("fr.hn_ungemessen")}</p>')
-        out.append(f"""<details class="fzeile"><summary class="frow">
-  <span class="repo"><a href="https://github.com/{html.escape(r["repo"])}">{html.escape(r["repo"])}</a></span>
-  <span class="num tempo">{fmt.dezimal(tempo)}</span><span class="num">{fmt.zahl(r["sterne"])}</span><span class="num muted">{zuwachs}</span>
-  <span>{html.escape(r["sprache"] or t("leer_strich"))}</span><span class="num muted">{fmt.datum_jahr(date.fromisoformat(r["erstmals"]))}</span><span class="num muted">{fmt.zahl(alter)}</span>
-</summary><div class="fdetail">{"".join(detail)}</div></details>""")
-    return '<div class="scroll"><div class="ftab">' + "".join(out) + "</div></div>"
 
 
 DELTA_MIN = 10   # unter so vielen Commits in der Vorwoche sagt ein Prozentwert nichts («+800 %» aus 1 gegen 9)
@@ -2805,7 +2654,7 @@ def wochenrang(c, heute, jetzt):
 
 
 def rueckblick_block(c, heute, jetzt, wahl):
-    """Drei Fenster als Reiter nach dem Muster der Rangliste: alle im HTML übereinander in einer Rasterzelle, zwei davon
+    """Fenster als Reiter: alle im HTML übereinander in einer Rasterzelle, zwei davon
     hidden, auch ihre Kopfzeilen; der Wechsel ist clientseitig und schreibt ?rueckblick= per replaceState. Serie und
     Rekorde über alle Daten bis jetzt, unabhängig vom Fenster."""
     tage = tageszaehlung(c, jetzt)
@@ -2847,20 +2696,6 @@ WAHL_KOPF = ("<script>try{var w=document.documentElement,g=" + json.dumps(WAHL, 
              f"{_WAHL_ZEIGEN} {{ visibility: visible; }} "
              "html[data-rb] .rueckblick .reiter button[aria-pressed], html[data-pd] nav[data-gruppe=\"pd\"] button[aria-pressed] { background: none; color: var(--sec); } "
              f"{_WAHL_REITER} {{ background: var(--eis); color: var(--bg); }}</style>")
-
-
-def fremde_block(c, heute, fenster):
-    """Ranglisten als Reiter: alle drei Fenster stehen im HTML, zwei davon hidden; der Wechsel ist clientseitig
-    (kein Neuladen, kein Sprung) und schreibt ?sterne= per replaceState, damit Neuladen und Link denselben
-    Reiter zeigen. Die Daten aller drei Fenster rechnet ranglisten() ohnehin, gemessen A0 am 11.09.2026."""
-    sterne_tag, listen = ranglisten(c)
-    eigene = eigene_sprachen(c)
-    reiter = "".join(f'<button type="button" data-fenster="{n}" aria-pressed="{str(n == fenster).lower()}">{t("fr.reiter", n)}</button>' for n in (7, 30, 90))
-    tabellen = "".join(f'<div class="fenster" data-fenster="{n}"{"" if n == fenster else " hidden"}>{tabelle_fremde(listen.get(n, []), heute, eigene, sterne_tag)}</div>' for n in (7, 30, 90))
-    stand_txt = t("fr.stand", date.fromisoformat(sterne_tag)) if sterne_tag else t("fr.kein_lauf")
-    return f"""<h3 class="titel">{t("fr.titel")} <span class="lbl">{stand_txt}</span></h3>
-  <nav class="seg small reiter" aria-label="{t("fr.aria")}" data-param="sterne" data-vorgabe="7">{reiter}</nav>
-  <div class="stapel">{tabellen}</div>"""
 
 
 def stand_block(c):
@@ -2932,7 +2767,7 @@ def skript():
     return SKRIPT.replace("/*TEXTE*/", json.dumps(texte, ensure_ascii=False))
 
 
-def seite(fenster=7, jetzt=None, rueckblick="30", ruhend=False, sprache=None, lang_param=False, handlung=frozenset(), accept="", heute_offen=False, fehler=None):
+def seite(jetzt=None, rueckblick="30", ruhend=False, sprache=None, lang_param=False, handlung=frozenset(), accept="", heute_offen=False, fehler=None):
     """Jeder Block wird für sich gerendert (block()); eine Ausnahme in einem Block lässt den Rest der Seite stehen. `sprache` übersteuert
     GITPULS_SPRACHE für diesen Aufruf; `lang_param` heisst, sie kam als ?lang= und der Link auf die Startseite behält sie. `accept` ist
     der Accept-Language-Kopf des Aufrufs, aus dem mit GITPULS_FORMAT die Format-Locale folgt (app/format.py). `fehler` nimmt die Namen
@@ -2941,12 +2776,12 @@ def seite(fenster=7, jetzt=None, rueckblick="30", ruhend=False, sprache=None, la
     marke = _blockfehler.set([] if fehler is None else fehler)
     try:
         with gilt(sp), fmt.gilt(fmt.waehlen(sp, accept)):
-            return _seite(fenster, jetzt, rueckblick, ruhend, lang_param, handlung, heute_offen)
+            return _seite(jetzt, rueckblick, ruhend, lang_param, handlung, heute_offen)
     finally:
         _blockfehler.reset(marke)
 
 
-def _seite(fenster, jetzt, rueckblick, ruhend, lang_param, handlung_offen=frozenset(), heute_offen=False):
+def _seite(jetzt, rueckblick, ruhend, lang_param, handlung_offen=frozenset(), heute_offen=False):
     jetzt = jetzt or db.jetzt(TZ)   # injizierbar für Tests an Wechseltagen
     heute = jetzt.date()
     s_daten, s_fehler = server_lesen()
@@ -2958,7 +2793,6 @@ def _seite(fenster, jetzt, rueckblick, ruhend, lang_param, handlung_offen=frozen
         handlung = block("Handlungsbedarf", handlung_block, c, heute, jetzt, handlung_offen)
         projekte_html = block("Projekte", projekte_block, c, heute, jetzt, ruhend)
         rueckblick = block("Rückblick", rueckblick_block, c, heute, jetzt, rueckblick)
-        fremde = block("Fremde Repos", fremde_block, c, heute, fenster)
         fuss = block("Fusszeile", fusszeile, c, s_daten, jetzt)
     sprache = aktiv()
     return f"""<!doctype html><html lang="{sprache}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2982,9 +2816,6 @@ def _seite(fenster, jetzt, rueckblick, ruhend, lang_param, handlung_offen=frozen
 </section>
 <section class="card rueckblick">
   {rueckblick}
-</section>
-<section class="card fremde">
-  {fremde}
 </section>
 </section>
 <footer class="fusszeile">{fuss}</footer>
@@ -3066,11 +2897,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.antwort(200, (WEB / "favicon.ico").read_bytes(), "image/x-icon")
         if u.path != "/":
             return self.antwort(404, b"nicht gefunden", "text/plain")
-        fenster, rb = q.get("sterne", ["7"])[0], q.get("rueckblick", ["30"])[0]
+        rb = q.get("rueckblick", ["30"])[0]
         # ?lang=en oder ?lang=de gilt für diesen Aufruf und lässt die übrigen Parameter unberührt; ein anderer Wert wird übergangen, dann
         # gilt GITPULS_SPRACHE (sprache_waehlen).
-        self.antwort(200, seite(int(fenster) if fenster in ("7", "30", "90") else 7,
-                                rueckblick=rb if rb in RUECKBLICK else "30", ruhend=q.get("ruhend", [""])[0] == "offen", heute_offen=q.get("heute", [""])[0] == "offen",
+        self.antwort(200, seite(rueckblick=rb if rb in RUECKBLICK else "30", ruhend=q.get("ruhend", [""])[0] == "offen", heute_offen=q.get("heute", [""])[0] == "offen",
                                 handlung=handlung_zeichen(q.get("handlung", [""])[0]),
                                 sprache=gewaehlt, lang_param=lang in TABELLEN, accept=self.headers.get("Accept-Language", "")).encode(),
                     "text/html; charset=utf-8")

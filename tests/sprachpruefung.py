@@ -1,13 +1,13 @@
 """Findet Deutsch in einem Text der englischen Seite: Umlaute, ß und typische Wörter der Oberfläche. Für tests/test_sprache.py und
-die Messung der Live-Seite. Daten (Betreffzeilen, Zweck der Dienste, README-Sätze, Topics, Zweignamen) tragen translate="no" und
+die Messung der Live-Seite. Daten (Betreffzeilen, Zweck der Dienste, Zweignamen) tragen translate="no" und
 werden vor der Prüfung entfernt; der Aufrufer übergibt nur den Rest."""
 import re
 from html.parser import HTMLParser
 
 WOERTER = ("heute", "gestern", "Woche", "Wochen", "Vorwoche", "Tag", "Tage", "Tagen", "seit", "Zuletzt", "ruht", "still", "Zweig",
            "Zweige", "wartet", "warten", "kein", "keine", "nicht", "und", "mit", "von", "bis", "über", "Stand", "Lauf", "läuft", "sauber",
-           "beendet", "gescheitert", "Neustart", "Dienste", "Sterne", "Sprache", "Alter", "Summe", "Rang", "Serie", "Rekorde", "Bester",
-           "Beste", "Laufende", "Längste", "Rückblick", "Projekte", "Fremde", "Aktualisieren", "Uhr", "Std", "Min", "Zeilen", "Achse",
+           "beendet", "gescheitert", "Neustart", "Dienste", "Sprache", "Alter", "Summe", "Rang", "Serie", "Rekorde", "Bester",
+           "Beste", "Laufende", "Längste", "Rückblick", "Projekte", "Aktualisieren", "Uhr", "Std", "Min", "Zeilen", "Achse",
            "Durchschnitt", "Handlungsbedarf", "Sicherheitswarnungen", "Maschine", "Installiert", "Pakete", "Kerne", "Platte",
            "Arbeitsspeicher", "Auslastung", "Zweck", "Dazu", "Bild", "gesund", "nächster", "zuletzt", "davor", "letzte", "diese", "Hell",
            "Dunkel", "Punkte", "Kommentare", "Lizenz", "erstmals", "gesehen", "Fenster", "Daten", "noch", "vor", "ab", "am", "je")

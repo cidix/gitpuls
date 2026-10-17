@@ -61,7 +61,7 @@ zeilen = q("SELECT SUM(d.plus), SUM(d.minus) FROM commit_dateien d JOIN commits 
 assert zeilen == [(7000, 1800)], zeilen
 sharp = {(t.date(), r) for t, r, b in commits if b == demo.SHARP}
 assert len(sharp) == 3 and len({d for d, _ in sharp}) == 1, sharp
-assert len(q("SELECT * FROM fremde")) >= 10 and q("SELECT COUNT(DISTINCT tag) FROM sterne")[0][0] >= 3
+assert not q("SELECT name FROM sqlite_master WHERE name IN ('sterne', 'fremde', 'fremde_detail')"), "die Rangliste ist mit 1.1.0 entfallen"
 
 # Nichts zeigt auf den Autor, Kunden oder echte Adressen: alle Texte der Datenbank und der JSON-Dateien durchsucht. Die Namen des Autors
 # stehen seit 10.10.2026 nicht mehr hier, sondern in der Sperrliste ausserhalb des Repos (Standard Öffentliche Repos, A5): GITPULS_SPERRLISTE

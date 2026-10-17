@@ -27,7 +27,6 @@ NACHTRAEGE = {
     # verfügbar (404 oder 422 auf dem Commit-Detail, Audit 25.09.2026), mit dateien_versuche und dem letzten Versuch in dateien_versucht.
     "commits": [("betreff", "TEXT"), ("eltern", "INTEGER"), ("dateien_geladen", "INTEGER"), ("dateien_versuche", "INTEGER"),
                 ("dateien_versucht", "TEXT")],
-    "fremde": [("topics", "TEXT"), ("issues", "INTEGER"), ("forks", "INTEGER"), ("lizenz", "TEXT")],
     # fehler: Code und Meldung, mit der GitHub das Repo im letzten Lauf abwies (403, 404, 451 …), fehler_utc der erste Lauf dieser
     # Reihe; NULL, sobald ein Lauf das Repo wieder lesen konnte (Audit 25.09.2026).
     # html_url: Adresse des Repos auf GitHub aus user/repos (25.09.2026), Grundlage der Links auf die Dependabot-Liste.
@@ -46,9 +45,6 @@ NACHTRAEGE = {
     # Zeitpunkt, *_fehler den Fehler der letzten Abfrage (NULL, wenn sie gelang). Ein Fehler ersetzt keinen bekannten Wert.
     # Die Messzeitpunkte vor den Fehlern: die Umstellung beim Anlegen von *_fehler schreibt schon in *_gemessen.
     "pruefungen": [("ci_gemessen", "TEXT"), ("sicher_gemessen", "TEXT"), ("ci_fehler", "TEXT"), ("sicher_fehler", "TEXT")],
-    # ungemessen (03.10.2026): Felder ohne bekannten Wert, weil ihr Abruf scheiterte und es keinen früheren gab, durch Komma getrennt
-    # (release, readme). NULL in release oder readme heisst sonst gemessen leer (kein Release, kein README).
-    "fremde_detail": [("ungemessen", "TEXT")],
     # Einzelheiten je Dependabot-Warnung (25.09.2026) für das Aufklappdetail im Block Handlungsbedarf: Titel (security_advisory.summary),
     # Geltungsbereich (dependency.scope: development oder runtime), geöffnet am (created_at), betroffener Versionsbereich, GHSA und CVE.
     # teilweise: Zahl der Repos, die GitHub im Lauf abwies (26.09.2026); 0 voller Erfolg, mehr ein Teilerfolg. NULL im Altbestand.
@@ -131,7 +127,7 @@ def _halter(sperre):
 
 @contextmanager
 def schreibsperre(ende=None):
-    """Ein Schreiber zur Zeit (25.09.2026): Sammler und Sternlauf nehmen diese Dateisperre im Volume, bevor sie schreiben. Ein
+    """Ein Schreiber zur Zeit (25.09.2026): jeder Sammellauf nimmt diese Dateisperre im Volume, bevor er schreibt. Ein
     zweiter wartet, bis der erste fertig ist, statt nach 5 s an «database is locked» zu scheitern. Gemessen am 25.09.2026 um 08:00:
     Lauf per Knopf um 08:00:01 und Timer-Lauf um 08:00:11 schrieben gleichzeitig, der Timer-Lauf endete mit Exit 1. flock gilt über
     Containergrenzen, weil beide Container dieselbe Datei auf demselben Kernel öffnen; die Sperre fällt mit dem Prozess, auch bei

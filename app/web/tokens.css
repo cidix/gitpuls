@@ -21,7 +21,6 @@
   --track: light-dark(#D1D9E0, rgba(255, 255, 255, .08));
   --raster: light-dark(rgba(31, 35, 40, .12), rgba(255, 255, 255, .12));  /* waagrechte Hilfslinien im SVG */
   --flaeche: light-dark(rgba(31, 35, 40, .1), rgba(242, 242, 242, .1));   /* Fläche unter der Kurve */
-  --hauch: light-dark(rgba(31, 35, 40, .04), rgba(255, 255, 255, .04));   /* Hover und Detailgrund der Tabelle */
   --glut: light-dark(#BC4C00, #D97757);                                  /* Warnfarbe, nur für Abweichungen im Serverteil */
   --eis: light-dark(#0969DA, #9CBCDE);                                   /* Akzent: Links, Reiter, tragende Zahlen, Befund, Höchstwert, Fokus */
   --mint: light-dark(#1A7F37, #8FD3A0);                                  /* Zustand «läuft, letzter Lauf sauber» (Vorlage: .cap .fill, outdoor) */

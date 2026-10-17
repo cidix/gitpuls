@@ -85,7 +85,6 @@ const AUSSCHNITTE = [
     zustaende: [{ szene: 'busy', zustand: 'zu', ziel: { sel: 'summary', an: 'rechts' } },
                 { szene: 'busy', zustand: 'auf', oeffnen: 'section.card.projekte details.prow', ziel: { sel: 'summary', an: 'rechts' } }] },
   { id: 'projektliste', gruppe: 'Projektliste', sel: 'section.card.projekte', zustaende: [{ szene: 'busy', zustand: 'liste' }] },
-  { id: 'sterne', gruppe: 'Sterne-Rangliste', sel: 'section.card.fremde', zustaende: [{ szene: 'busy', zustand: 'rangliste' }] },
 ];
 // derselbe Block auch bei 430 px, einspaltig wie in der App unter 820 px (Website unter 760 px)
 AUFNAHMEN.push(AUSSCHNITTE.find((a) => a.id === 'handlung-klapp'));
@@ -234,7 +233,7 @@ try {
 // damit alle dieselbe Breite haben. Handy und «hell und dunkel» werden im Browser aus echten Aufnahmen zusammengesetzt. Ausgabe nach
 // demo/aufnahmen/readme/ als PNG in voller Qualität; verkleinert und nach docs/screenshots/ übernommen werden sie von Hand (README, Development).
 async function readmeAufnahmen(browser, instanz) {
-  const RM = join(AUS, 'readme'), B = 1280, DSF = 1.25, RAND = 16;   // ab 1280 px passt die Rangliste samt Spalte Alter
+  const RM = join(AUS, 'readme'), B = 1280, DSF = 1.25, RAND = 16;
   rmSync(RM, { recursive: true, force: true });
   mkdirSync(RM, { recursive: true });
   const kontext = (modus, mehr = {}) => browser.newContext({ viewport: { width: B, height: 900 }, deviceScaleFactor: DSF, locale: 'en-US',
@@ -277,7 +276,6 @@ async function readmeAufnahmen(browser, instanz) {
       });
       await bild(page, 'projekte.png', 'section.card.projekte', 'section.card.projekte', (p) => p.locator('section.card.projekte details.prow').first().evaluate((d) => { d.open = true; }));
       await bild(page, 'rueckblick.png', 'section.card.rueckblick');
-      await bild(page, 'sterne.png', 'section.card.fremde');
     }
     await ctx.close();
   }

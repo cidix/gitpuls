@@ -8,7 +8,7 @@ services:
   gitpuls:
     # Das öffentliche Image; gibt es den Tag nicht, baut Compose aus dem Quelltext (build). Eine eigene Fassung setzt GITPULS_TAG auf
     # ihren Commit und baut mit docker compose build.
-    image: ghcr.io/cidix/gitpuls:${GITPULS_TAG:-1.0.4}
+    image: ghcr.io/cidix/gitpuls:${GITPULS_TAG:-1.1.0}
     build: .
     restart: unless-stopped
     # Die Vorsilbe 127.0.0.1: IST die Sicherheitsgrenze (Docker publiziert an
@@ -27,9 +27,7 @@ services:
       GITPULS_FORMAT: ${GITPULS_FORMAT:-}
       # Erlaubte Hosts gegen DNS-Rebinding (10.10.2026), durch Komma, etwa der Tailnet-Name; Loopback gilt immer, Vorgabe nur Loopback.
       GITPULS_HOSTS: ${GITPULS_HOSTS:-}
-      # Der eigene Stack für die Rangliste fremder Repos, durch Komma getrennt (10.10.2026, Audit S23), Vorgabe leer.
-      GITPULS_STACK: ${GITPULS_STACK:-}
-      # Takt im Container in Minuten (10.10.2026, Audit S7): Sammler so oft, Sternlauf einmal am Tag und nachgeholt, wenn er fehlt.
+      # Takt im Container in Minuten (10.10.2026, Audit S7): Sammler so oft.
       # Die Alternative zu den Host-Timern in deploy/; 0 schaltet ihn ab.
       GITPULS_TAKT_MIN: ${GITPULS_TAKT_MIN:-60}
       GITPULS_DB: /data/gitpuls.db
