@@ -6,7 +6,32 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-17
+
+Same content as 1.1.0, released again as a major version. 1.1.0 already contained this breaking change
+(operators with the host timer `gitpuls-sterne` must remove it) and should have been released as a major version.
+
+### Removed
+
+- The ranking of young public repositories by stars ("Other repos by stars") with its 7, 30 and 90 day tabs and the
+  `?sterne=` parameter. Old links with `?sterne=` still open the page; the parameter is ignored.
+- The GitHub search API and Hacker News (Algolia) requests behind the ranking. gitpuls now talks only to the
+  GitHub API for your own repositories.
+- The star run: `app/sterne.py`, the host units `deploy/gitpuls-sterne.service` and `deploy/gitpuls-sterne.timer`,
+  and the daily star run of the in-container interval (`GITPULS_TAKT_MIN` now starts only the collector).
+- The setting `GITPULS_STACK`. A value left in `.env` or `compose.yaml` is ignored and does not stop the start.
+
+### Upgrade notes
+
+- The tables `sterne`, `fremde` and `fremde_detail` stay in your database untouched; gitpuls no longer creates or
+  reads them. You may drop them, e.g. `sqlite3 gitpuls.db 'DROP TABLE sterne; DROP TABLE fremde; DROP TABLE fremde_detail;'`
+  while no collector runs.
+- If you installed the host timer, remove it: `systemctl disable --now gitpuls-sterne.timer`, delete the two unit
+  files, `systemctl daemon-reload`, and drop `gitpuls-sterne` from the `timer` list in your `tools/dienste.json`.
+
 ## [1.1.0] - 2026-10-17
+
+Contains the breaking change described under [2.0.0](#200---2026-10-17); use 2.0.0 instead.
 
 ### Removed
 
@@ -93,7 +118,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/cidix/gitpuls/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/cidix/gitpuls/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/cidix/gitpuls/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/cidix/gitpuls/compare/v1.0.2...v1.0.3
