@@ -129,7 +129,7 @@ Without Actions or Dependabot alerts the dashboard shows "not measured" for thos
 | `GITPULS_TOKENDATEI` | `./github.env` | File with `GITHUB_TOKEN=...`. |
 | `GITPULS_VOLUME` | `gitpuls-daten` | Docker volume for the database. |
 | `GITPULS_TAKT_MIN` | `60` | Collector interval inside the container in minutes. `0` disables it; a negative, infinite or non-numeric value stops the start with an error. |
-| `GITPULS_TAG` | `2.0.0` | Image tag. The footer shows the version built into the image; an image built from source shows this tag instead. |
+| `GITPULS_TAG` | `2.1.0` | Image tag. The footer shows the version built into the image; an image built from source shows this tag instead. |
 | `GITPULS_DIENSTE` | `tools/dienste.json` | Service table for the server zone (example: `tools/dienste.beispiel.json`). Service names must be unique; an invalid entry is shown as "not measured" and affects only itself. |
 | `GITPULS_PRODUKT` | empty | Product line of the machine shown in the server zone. |
 | `GITPULS_SERVER_ZIEL`, `GITPULS_DEPLOY_ZIEL` | in the volume | Where the host scripts write `server.json` and `deploy.json`. |

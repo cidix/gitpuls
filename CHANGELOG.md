@@ -6,6 +6,18 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-26
+
+### Added
+
+- A meta line "Full last week: N" in the Week view of the second tile: the commits of the whole previous week,
+  Monday to Sunday, from the same series as the dashed line. An absolute number, no percentage and no comparison.
+
+### Changed
+
+- The ring in the header shows a closed ring with 0 instead of a sentence when there are 0 commits, in both the
+  7 days and the Week view. The status sentence above keeps its wording.
+
 ## [2.0.0] - 2026-10-17
 
 Same content as 1.1.0, released again as a major version. 1.1.0 already contained this breaking change
@@ -118,7 +130,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/cidix/gitpuls/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cidix/gitpuls/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/cidix/gitpuls/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/cidix/gitpuls/compare/v1.0.3...v1.0.4
