@@ -308,7 +308,7 @@ def pruefe_kopf(s, befunde):
     assert roh_lage.index('data-fenster="7">') < roh_lage.index('data-fenster="woche" hidden>')
     sieben = fassung(roh_lage, "7")
     assert re.search(r'<p class="f"><span class="satz">In\u00a0den letzten 7\u00a0Tagen (am meisten|kein Commit)', sieben), sieben[:200]
-    assert "in den letzten 7 Tagen nach Repo</span>" in sieben or "In den letzten 7 Tagen kein Commit.</span></div>" in sieben, sieben[:600]
+    assert "in den letzten 7 Tagen nach Repo</span>" in sieben and "kein Commit.</span></div>" not in sieben, sieben[:600]
     lage = fassung(roh_lage, "woche")
     satz, zahlen, rangliste, montag_r, n_zweige, zeilen, (repos_w, anteile) = kopf_roh()
     assert len(zeilen) == befunde, (befunde, zeilen)
@@ -334,13 +334,15 @@ def pruefe_kopf(s, befunde):
     assert [k for k, *_ in gef] == ["s1", "s2", "s3"][:len(gef) - (1 if gef and gef[-1][0] == "srest" else 0)] + (["srest"] if gef and gef[-1][0] == "srest" else []), gef
     # Segmentlängen gleich den Anteilen aus den Rohdaten, aneinander anschliessend, Summe 100.
     seg = [(float(l), float(o)) for l, o in re.findall(r'stroke-dasharray="([\d.]+) [\d.]+" stroke-dashoffset="(-?[\d.]+)"', ring)]
-    assert len(seg) == len(anteile) and all(abs(l - a) < .001 for (l, _), a in zip(seg, anteile)), (seg, anteile)
-    assert all(abs(-o - sum(anteile[:i])) < .002 for i, (_, o) in enumerate(seg)) and (not seg or abs(sum(l for l, _ in seg) - 100) < .01), seg
-    # Unterzeile «diese Woche nach Repo»; ohne Commit ein gedämpfter Satz statt Ring und Unterzeile.
-    if anteile:
-        assert ring.endswith('</ul></div><span>diese Woche nach Repo</span></div>'), ring[-200:]
-    else:
-        assert ring == '<div class="n ring-spalte"><span>Diese Woche noch kein Commit.</span></div>', ring
+    # Ohne Commit (26.10.2026) ein einziges geschlossenes Segment über 100.
+    erwartet = anteile or [100.0]
+    assert len(seg) == len(erwartet) and all(abs(l - a) < .001 for (l, _), a in zip(seg, erwartet)), (seg, erwartet)
+    assert all(abs(-o - sum(erwartet[:i])) < .002 for i, (_, o) in enumerate(seg)) and abs(sum(l for l, _ in seg) - 100) < .01, seg
+    # Unterzeile «diese Woche nach Repo», auch ohne Commit; dann in der Legende nur der gedämpfte Fleck und die 0.
+    assert ring.endswith('</ul></div><span>diese Woche nach Repo</span></div>'), ring[-200:]
+    if not anteile:
+        assert '<circle class="rseg srest"' in ring and 'nach Repo, 0"' in ring and ring.count("<li>") == 1, ring
+        assert '<ul class="rlegende"><li><i class="sw srest" aria-hidden="true"></i><span class="rzahl">0</span></li></ul>' in ring, ring
     assert "fbalken" not in lage, "die Anteilbalken der Rangliste sind weg"
     block = lage[i_bf:i_serie]
     # Seit 25.09.2026 nur die Zusammenfassung: grosse Zahl in Akzentfarbe (.n b), Unterzeile, Singular bei 1; bei einer Art ist die
@@ -1268,6 +1270,9 @@ assert (wo_u["tage"], wo_u["n"], wo_u["vor"], wo_u["zeile1"]) == ([1, 1], 2, 2, 
 assert wo_u["vorwoche"] == [1, 2, 0, 0, 0, 0, 1] and wo_u["label"] == "Commits diese Woche" and len(wo_u["xlabels"]) == 7, "ganze Vorwoche je Wochentag, sieben Plätze"
 g_u = web.kachel_block(wo_u, web.umschalter("k2", "woche"), False)
 assert g_u.count("<rect") == 2 and g_u.count('<path class="schnitt ref"') == 1 and g_u.count('<span class="platz"') == 7, "künftige Tage leer, Achse ganze Woche"
+# Ganze Vorwoche Mo 23.03. bis So 29.03. als absolute Zahl (26.10.2026): 1 + 2 + 1 aus den Rohdaten, als dritte Metazeile, ohne Prozent.
+assert '<span class="delta bezug zeilen">Ganze Vorwoche: <span class="kwert">4</span></span></div>' in g_u, g_u[:1500]
+assert all("Ganze Vorwoche" not in web.kachel_block(k) for _, k in var_u["k3"]), "nur in der Fassung Woche"
 # Vergleich der Woche (01.10.2026): die Vorwoche je Wochentag, Mo 23.03. 1, Di 24.03. 2, So 29.03. 1, gestrichelt auf den sieben Plätzen;
 # vorher eine waagrechte Linie auf dem Tagesmittel 4/7, die nichts verglich. Der Zeiger liest an jedem Tag den Wert der Vorwoche ab.
 ref_y = [float(p.split(",")[1]) for p in re.search(r'<path class="schnitt ref" d="M([^"]+)"', g_u).group(1).split(" L")]
@@ -1378,8 +1383,8 @@ db.DB = haupt_h
 # Platz: Zeilen aus Kachelhöhe und Zeilenhöhe, Untergrenze zwei, Obergrenze acht, die Restzeile nimmt eine Zeile. Die
 # Erwartung rechnet die Zeilen unabhängig aus Platz und Zeile: Zeilen z brauchen z × Zeile + (z − 1) × Abstand.
 zeilen_fuer = lambda platz: max(z for z in range(0, 50) if z * web.HEUTE_ZEILE_PX + max(z - 1, 0) * web.HEUTE_ABSTAND_PX <= platz)
-# 8 passen bei 173.58 px (gemessen 26.09.2026, vorher 9 bei 193.59 px): 8 × 17.91 + 7 × 3.19 = 165.61, eine neunte bräuchte 186.71.
-assert zeilen_fuer(web.HEUTE_PLATZ_PX) == 8 and min(web.HEUTE_MAX, zeilen_fuer(web.HEUTE_PLATZ_PX)) == 8, zeilen_fuer(web.HEUTE_PLATZ_PX)
+# 9 passen bei 190.95 px (gemessen 26.10.2026, vorher 8 bei 173.58 px): 9 × 17.91 + 8 × 3.19 = 186.71, die Obergrenze bleibt acht.
+assert zeilen_fuer(web.HEUTE_PLATZ_PX) == 9 and min(web.HEUTE_MAX, zeilen_fuer(web.HEUTE_PLATZ_PX)) == 8, zeilen_fuer(web.HEUTE_PLATZ_PX)
 for platz in (10, 30, 60, 100, 172.17, 182.97, 400, 1000):
     grenze = max(2, min(8, zeilen_fuer(platz)))
     for n_ in range(0, 25):
@@ -1424,11 +1429,11 @@ assert web.heute_liste([("fernwerk-studio/a", 3, "2026-09-18T08:00:00Z"), ("fern
 # Commitliste unter der Aufteilung (25.09.2026). Platz unabhängig nachgerechnet: gemessener Platz ab der Liste minus die Zeilen
 # der Aufteilung samt Restzeile, 12 px Abstand, Zeile «Zuletzt» mit Zeilenabstand und 4 px Rand; jeder Eintrag Zeile plus Abstand.
 def plaetze_roh(zeilen):
-    # Die Werte der Liste stehen hier als Messwerte (Platz vom 26.09.2026, Zeile und Abstand vom 25.09.2026), nicht aus web: sonst prüfte
+    # Die Werte der Liste stehen hier als Messwerte (Platz vom 26.10.2026, Zeile und Abstand vom 25.09.2026), nicht aus web: sonst prüfte
     # sich der Code gegen sich selbst.
-    frei = 173.58 - (zeilen * 17.91 + max(zeilen - 1, 0) * 3.19) - 12 - 17.91 - 3.19 - 4
+    frei = 190.95 - (zeilen * 17.91 + max(zeilen - 1, 0) * 3.19) - 12 - 17.91 - 3.19 - 4
     return max(n for n in range(0, 20) if n == 0 or n * 17.91 + (n - 1) * 3.19 <= frei)
-assert [web.heute_commit_plaetze(z) for z in range(1, 9)] == [plaetze_roh(z) for z in range(1, 9)] and web.heute_commit_plaetze(3) == 3 and web.heute_commit_plaetze(5) == 1 and web.heute_commit_plaetze(6) == 0, [web.heute_commit_plaetze(z) for z in range(1, 9)]
+assert [web.heute_commit_plaetze(z) for z in range(1, 9)] == [plaetze_roh(z) for z in range(1, 9)] and web.heute_commit_plaetze(3) == 4 and web.heute_commit_plaetze(5) == 2 and web.heute_commit_plaetze(7) == 0, [web.heute_commit_plaetze(z) for z in range(1, 9)]
 liste_von = lambda h: re.findall(r'<li( class="nur-(?:breit|schmal)")?><span class="hzeit">([^<]*)</span><span class="hcrepo">([^<]*)</span><span class="hcbetreff" title="([^"]*)" translate="no">([^<]*)</span></li>', h)
 db_liste = db.DB
 db.DB = Path(tempfile.mkdtemp()) / "heute-liste.db"
@@ -1453,14 +1458,14 @@ h7 = web.kachel_block(k7)
 # Mit 7 Repos ohne Restzeile passt seit der einzeiligen Codezeile (193.59 px, 25.09.2026) nebeneinander kein Eintrag mehr, untereinander
 # fünf; bei 210.97 px war es einer.
 assert "heute-rest" not in h7 and '<div class="heute-zuletzt nur-schmal"><p>Zuletzt</p>' in h7 and [x[0] for x in liste_von(h7)] == [' class="nur-schmal"'] * 5, h7[-600:]
-# (a, c) 3 Repos: drei Einträge nebeneinander (plaetze_roh(3)), untereinander fünf; die Liste ist das Tagesfenster aus den Rohzeilen,
+# (a, c) 3 Repos: vier Einträge nebeneinander (plaetze_roh(3), seit 26.10.2026; vorher drei), untereinander fünf; die Liste ist das Tagesfenster aus den Rohzeilen,
 # jüngste zuerst, der Commit nach jetzt fehlt; Betreff voll im title, escaped.
 k3, roh3 = heute_mit(["fernwerk-studio/l0", "fernwerk-studio/l1", "fernwerk-studio/l2"], jl)
 h3 = web.kachel_block(k3)
 e3 = liste_von(h3)
 erwartet3 = [(datetime.fromisoformat(t.replace("Z", "+00:00")).astimezone(web.TZ).strftime("%H:%M"), r.split("/")[1], web.html.escape(b), web.html.escape(b)) for t, r, b in roh3[:5]]
 assert [tuple(x[1:]) for x in e3] == erwartet3 and len(roh3) == 9 and "nach jetzt" not in h3, (e3, erwartet3)
-assert [x[0] for x in e3] == [""] * plaetze_roh(3) + [' class="nur-schmal"'] * (5 - plaetze_roh(3)) and plaetze_roh(3) == 3, e3
+assert [x[0] for x in e3] == [""] * plaetze_roh(3) + [' class="nur-schmal"'] * (5 - plaetze_roh(3)) and plaetze_roh(3) == 4, e3
 assert '<div class="heute-zuletzt"><p>Zuletzt</p><ul class="hcommits">' in h3 and h3.index('<ul class="heute">') < h3.index('<div class="heute-zuletzt">'), h3[-900:]
 assert [z[0] for z in roh3] == sorted((z[0] for z in roh3), reverse=True), "jüngste zuerst"
 # (d) Rückfall: am 17.09. leer, die Liste zeigt den 16.09., dieselben Zeilen wie die Aufteilung.
@@ -2409,12 +2414,18 @@ assert b7.count('<li>') == 1 and '<a href="#handlung-zweige">7 Zweige warten auf
 with db.verbinden() as c2:
     s7o = web.seite(jetzt=jk, handlung=web.handlung_zeichen("zweige-alle,zweige"))
 assert web.handlung_zeichen("zweige-alle,zweige") == frozenset() and s7o.count('<li id="hb-zweige-') == 7, "alte Zeichen ohne Wirkung"
-# Ring, Randfälle (Kriterium c): eine Woche ohne Commit (gedämpfter Satz statt Ring), ein einziges Repo (ein Segment über 100),
+# Ring, Randfälle (Kriterium c): eine Woche ohne Commit (ein gedämpftes Segment über 100 und die 0, seit 26.10.2026), ein einziges Repo (ein Segment über 100),
 # jeweils ohne Blockfehler. Vier Repos stehen oben.
 s_leer = web.seite(jetzt=datetime(2026, 10, 7, 12, 0, tzinfo=web.TZ))
 ring_leer = s_leer[s_leer.index('<div class="n ring-spalte">'):s_leer.index('<div class="n befunde">')]
-assert ring_leer == ('<div class="n ring-spalte"><span>In den letzten 7 Tagen kein Commit.</span></div></div><div class="fenster" data-gruppe="k2" '
-                     'data-fenster="woche" hidden><div class="n ring-spalte"><span>Diese Woche noch kein Commit.</span></div></div></div>') and s_leer.count("blockfehler") == 0, ring_leer
+leer_ring = lambda ab, aria, unter: ('<div class="n ring-spalte"><div class="ringbox"><svg class="ring" viewBox="0 0 42 42" width="112" height="112" role="img" '
+    f'aria-label="Commits {aria} ab {ab} nach Repo, 0"><circle class="rseg srest" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="100.000 0.000" '
+    'stroke-dashoffset="-0.000" transform="rotate(-90 21 21)"/></svg><ul class="rlegende"><li><i class="sw srest" aria-hidden="true"></i><span class="rzahl">0</span>'
+    f'</li></ul></div><span>{unter}</span></div>')
+assert ring_leer == (leer_ring("01.10.", "der letzten 7 Tage", "in den letzten 7 Tagen nach Repo") + '</div><div class="fenster" data-gruppe="k2" data-fenster="woche" hidden>'
+                     + leer_ring("05.10.", "der Woche", "diese Woche nach Repo") + '</div></div>') and s_leer.count("blockfehler") == 0, ring_leer
+# Der Lagesatz behält den Leersatz (lage.leer7, lage.woche_leer), nur die Ringspalte zeigt den Ring mit 0.
+assert nb("In den letzten 7 Tagen kein Commit.") in s_leer and nb("Diese Woche noch kein Commit.") in s_leer, "Lagesatz unverändert"
 solo = web.ring_html([("solo", 7, 100.0)], 7, 1, date(2026, 9, 21))
 assert solo.count('class="rseg') == 1 and 'stroke-dasharray="100.000 0.000"' in solo and solo.endswith('<span>diese Woche nach Repo</span></div>'), solo
 # Sechs Repos in der Woche, die Legende hat vier Zeilen (drei und «3 weitere»); die Unterzeile nennt seit dem Umbau (25.09.2026)

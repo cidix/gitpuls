@@ -174,6 +174,7 @@ T = {
     "kachel.was7": "Commits je Tag, letzte 7 Tage",
     "kachel.zeilen_davor": lambda z: f"7 Tage davor: {z}",
     "kachel.woche": "Commits diese Woche",
+    "kachel.ganze_vorwoche": lambda n: f"Ganze Vorwoche: {n}",
     "kachel.vorwoche": "Vorwoche zum selben Zeitpunkt",
     "kachel.leg_woche": lambda sw1, sw2: f"{sw1} Commits je Tag · {sw2} Vorwoche je Tag",
     "kachel.was_woche": "Commits je Tag, diese Woche",

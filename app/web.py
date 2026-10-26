@@ -1391,6 +1391,9 @@ def kachelvarianten(c, heute, jetzt):
           **vergleich(t("kachel.vorwoche"), sum(tage_w), sum(tage_v)),
           "zeile2": t("kachel.an_tagen", an_w, n_tage, beruehrt), "paare": (an_w, n_tage, beruehrt),
           "zeile3": html.escape(t("kachel.nachladen")) if offen_w or offen_v else zeilen_text(plus_w, minus_w, als_html=True),
+          # Die ganze Vorwoche Mo bis So als absolute Zahl (26.10.2026), dieselbe Reihe wie die gestrichelte Linie; bewusst ohne Prozent,
+          # der Vergleich bleibt «Vorwoche zum selben Zeitpunkt».
+          "zeile4": t("kachel.ganze_vorwoche", f'<span class="kwert">{fmt.zahl(sum(vorwoche))}</span>'),
           "zeile3_title": "" if offen_w or offen_v else
               t("kachel.zeilen_vor", zeilen_text(plus_v, minus_v)) + "\n" + t("kachel.aus_title", t("kachel.aus_woche"), fmt.zahl(aus_w), dateien_w, fmt.zahl(db.EINZEL_MAX), ohne_w + ohne_v),
           "legende": t("kachel.leg_woche", sw(balken=True), sw(schnitt=True, ref=True)), "was": t("kachel.was_woche")}
@@ -1928,25 +1931,27 @@ def ring_html(rang, summe, repos_n, montag, sieben=False):
     nach Repo»; die Repozahl steht in Kopfspalte 3 neben der Serie (repos_html). Seit dem Feinschliff
     desselben Tages ohne Überschrift und mit leerer Ringmitte: die Spalte ist gebaut wie Serie und Zweige (.n), oben das
     Sichtbare, darunter die eine Zeile. Die Segmente laufen über pathLength 100, ihre Länge IST der Anteil. Ohne Commit in
-    der Woche ein gedämpfter Satz statt eines leeren Rings. `montag` bleibt für die Beschriftung des Segments im aria-label."""
-    if not summe:
-        return f'<div class="n ring-spalte"><span>{t("lage.leer7" if sieben else "lage.woche_leer")}</span></div>'
+    der Woche (26.10.2026) derselbe Ring als ein geschlossenes gedämpftes Segment, in der Legende nur der Fleck und die 0, statt des
+    Leersatzes, der die Spalte anders baute als die zwei daneben. `montag` bleibt für die Beschriftung des Segments im aria-label."""
     teile = [(n, w, a, RING_STUFEN[i]) for i, (n, w, a) in enumerate(rang)]
     rest = summe - sum(w for _, w, _ in rang)
     if rest:
         weitere = max(1, repos_n - len(rang))
         teile.append((t("ring.weitere", weitere), rest, rest * 100 / summe, "srest"))
+    if not summe:
+        teile = [("", 0, 100, "srest")]
     segmente, ab = [], 0.0
     for _, _, a, k in teile:
         segmente.append(f'<circle class="rseg {k}" cx="21" cy="21" r="15.9155" pathLength="100" '
                         f'stroke-dasharray="{a:.3f} {100 - a:.3f}" stroke-dashoffset="{-ab:.3f}" transform="rotate(-90 21 21)"/>')
         ab += a
-    teile_aria = ", ".join(f'{n} {fmt.prozent(a)}' for n, _, a, _ in teile)
+    teile_aria = ", ".join(f'{n} {fmt.prozent(a)}' for n, _, a, _ in teile) if summe else fmt.zahl(0)
     # 112 px seit 26.09.2026 (vorher 84, ein Drittel grösser); style.css .ring trägt dasselbe Mass.
     bild = (f'<svg class="ring" viewBox="0 0 42 42" width="112" height="112" role="img" aria-label="{html.escape(t("ring.aria7" if sieben else "ring.aria", montag, teile_aria))}">'
             f'{"".join(segmente)}</svg>')
     legende = "".join(f'<li><i class="sw {k}" aria-hidden="true"></i><span class="rname" title="{html.escape(n)}">{html.escape(n)}</span>'
-                      f'<span class="rzahl">{fmt.zahl(w)}</span><span class="ranteil">{fmt.prozent(a)}</span></li>' for n, w, a, k in teile)
+                      f'<span class="rzahl">{fmt.zahl(w)}</span><span class="ranteil">{fmt.prozent(a)}</span></li>' for n, w, a, k in teile) if summe else \
+        f'<li><i class="sw srest" aria-hidden="true"></i><span class="rzahl">{fmt.zahl(0)}</span></li>'
     return (f'<div class="n ring-spalte"><div class="ringbox">{bild}<ul class="rlegende">{legende}</ul></div>'
             f'<span>{t("ring.unter7" if sieben else "ring.unter")}</span></div>')
 
@@ -2226,15 +2231,17 @@ def handlung_block(c, heute, jetzt, offen=frozenset()):
 # Vergleichszeile, darunter 16 px abgesetzt .kmeta mit zwei Zeilen Mindesthöhe; die Kopfzeile «Heute in N Repos» steht dort als
 # Metazeile) und die Codezeile «+N / −M Zeilen» heisst: Kachel 348.95 px (vorher 340.97), von der Oberkante der Liste bis zur
 # Innenkante unten 173.58 px (vorher 193.59, davor 210.97); eine Zeile 17.91 px, Zeilenabstand 3.19 px, beide unverändert.
+# Neu gemessen am 26.10.2026 mit der dritten Metazeile «Ganze Vorwoche: N» der Wochenkachel: Kachel 366.33 px, Platz 190.95 px,
+# Zeile 17.91 px unverändert.
 # Die Restzeile «und N weitere Repos» hat dieselbe Höhe und denselben Abstand und zählt mit.
 # Untereinander (unter 820 px) gilt die Rechnung nicht, dort stehen alle Repos.
 # ponytail: die Werte folgen dem Stylesheet nicht von selbst; wer dort Schrift, Abstände oder die Kurvenhöhe ändert, misst neu.
-HEUTE_PLATZ_PX, HEUTE_ZEILE_PX, HEUTE_ABSTAND_PX = 173.58, 17.91, 3.19
+HEUTE_PLATZ_PX, HEUTE_ZEILE_PX, HEUTE_ABSTAND_PX = 190.95, 17.91, 3.19
 HEUTE_MIN, HEUTE_MAX = 2, 8
 # Commitliste unter der Aufteilung (25.09.2026): 12 px Abstand, die gedämpfte Zeile «Zuletzt», dann die Einträge im selben Raster
 # wie die Aufteilung; die letzte Zeile endet mindestens 4 px über der Innenkante. Gemessen in Chrome am 25.09.2026 bei 1280 px:
 # Abstand Aufteilung zu «Zuletzt» 12.00 px, Zeile «Zuletzt» 17.91 px, ein Eintrag 17.91 px, Abstand .2rem = 3.19 px. Mit drei
-# Repos passen bei 173.58 px Platz drei Einträge (26.09.2026; bei 193.59 px vier, bei 210.97 px fünf).
+# Repos passen bei 190.95 px Platz vier Einträge (26.10.2026; bei 173.58 px drei, bei 193.59 px vier, bei 210.97 px fünf).
 HEUTE_LISTE_ABSTAND_PX, HEUTE_LISTE_KOPF_PX, HEUTE_RAND_PX = 12, 17.91, 4
 HEUTE_LISTE_SCHMAL = 5   # untereinander ist die Höhe frei, dort höchstens fünf Einträge
 
@@ -2330,7 +2337,8 @@ def kachel_block(k, nav="", rahmen=True):
     if "aufteilung" in k:
         meta = meta_zeile(html.escape(heute_kopf(k["aufteilung"], k["zuletzt"])), " heute-kopf") if k["aufteilung"] else ""
         return kpi_html(k["n"], k["label"], k["zeile1_html"], meta, block("Heute-Aufteilung", heute_liste, k["aufteilung"], k["zuletzt"], k.get("commits", ()), k.get("offen", False)), "")
-    meta = meta_zeile(tage_paare(*k["paare"]), " paare", k["zeile2"]) + (meta_zeile(k["zeile3"], " zeilen", k.get("zeile3_title", "")) if k.get("zeile3") else "")
+    meta = (meta_zeile(tage_paare(*k["paare"]), " paare", k["zeile2"]) + (meta_zeile(k["zeile3"], " zeilen", k.get("zeile3_title", "")) if k.get("zeile3") else "")
+            + (meta_zeile(k["zeile4"], " zeilen") if k.get("zeile4") else ""))
     if "schnitt" in k:
         # Balken je Tag, heute heller (läuft noch), darüber der gleitende Durchschnitt als Vergleichsreihe auf den Balkenmitten: der
         # Zeiger liest an jedem Tag Tageswert und Durchschnitt ab.
