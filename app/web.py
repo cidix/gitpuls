@@ -190,7 +190,7 @@ SCHWELLEN = {"aktiv": 7, "ruht": 60}
 # Ein Zweig vor main wird erst zum Befund, wenn sein letzter Commit älter als diese Frist ist (Entscheid 26.09.2026): ein frisch
 # gepushter Arbeitszweig ist Arbeit, kein Handlungsbedarf. Sekundengenau gegen jetzt, nicht nach Kalendertagen. Alle Zähler (Block
 # Handlungsbedarf, Kopfzahl samt Sprunglinks, Lagesatz) lesen k["befunde"] aus projekte(), die Frist wirkt nur dort; die Zweigangabe
-# der Projektzeile (kurz.zweig) bleibt davon unberührt, ebenso Dependabot-Zweige, Sicherheitswarnungen und Actions.
+# der Projektzeile (kurz.zweig) bleibt davon unberührt, ebenso Dependabot- und Renovate-Zweige, Sicherheitswarnungen und Actions.
 ZWEIG_FRIST = timedelta(days=3)
 # Ein Repo fällt von der Seite, wenn GitHub es nicht mehr listet (gelöscht oder archiviert). Gemessen
 # wird nicht der letzte Lauf, sondern eine Karenz: sonst würde eine Antwort, die nur die erste Seite
@@ -786,6 +786,9 @@ DEPENDABOT_MUSTER = re.compile(r"dependabot/[^/]+/(.+)-(\d+(?:\.[\w-]+)+)")
 # Pull Requests lesen (403 «Resource not accessible by personal access token», gemessen im Container am 03.10.2026), die Pakete der
 # Gruppe kennt er also nicht: angezeigt wird «Gruppe dev (npm)», Gruppenname ohne Hash, Ökosystem lesbar.
 DEPENDABOT_GRUPPE = re.compile(r"dependabot/([^/]+)/(?:.+/)?([^/]+)-[0-9a-f]{10}")
+# Ein Renovate-Zweig heisst renovate/<paket>-<version> (27.10.2026), meist mit «.x» wie renovate/astro-5.x; Gruppen und
+# lock-file-maintenance haben keine Version und stehen mit ihrem Zweignamen.
+RENOVATE_MUSTER = re.compile(r"renovate/(.+)-(\d+(?:\.[\w-]+)+)")
 OEKOSYSTEME = {"npm_and_yarn": "npm", "github_actions": "GitHub Actions", "go_modules": "Go", "gitsubmodule": "Git submodules"}
 
 
@@ -802,23 +805,23 @@ def hb_id(art, repo, zweig=""):
 
 
 def dependabot_update(repo_url, zweig, seit):
-    """Ein offenes Dependabot-Update: Paket und Zielversion aus dem Zweignamen, Link auf die gefilterte PR-Liste dieses Zweigs (ohne
+    """Ein offenes Dependabot- oder Renovate-Update: Paket und Zielversion aus dem Zweignamen, Link auf die gefilterte PR-Liste dieses Zweigs (ohne
     Leserecht auf Pull Requests kennt der Dienst die PR-Nummer nicht; die Liste zeigt genau den einen PR)."""
-    m = DEPENDABOT_MUSTER.fullmatch(zweig)
+    m = DEPENDABOT_MUSTER.fullmatch(zweig) or RENOVATE_MUSTER.fullmatch(zweig)
     g = None if m else DEPENDABOT_GRUPPE.fullmatch(zweig)
     paket = m[1] if m else t("hb.gruppe", g[2], OEKOSYSTEME.get(g[1], g[1].replace("_", " "))) if g else zweig
     return {"zweig": zweig, "paket": paket, "version": m[2] if m else "", "seit": seit, "gruppe": bool(g),
             "url": repo_url + "/pulls?q=" + quote(f"is:pr is:open head:{zweig}")}
 
 
-def dependabot_wert(k):
+def dependabot_wert(updates):
     """Die Updates eines Repos im Aufklappdetail: je Update Paket und Zielversion als Link, gedämpft das Alter. Der Block Handlungsbedarf
     setzt seit 03.10.2026 je Update eine eigene Zeile (update_eintrag in handlung_block)."""
     return ", ".join(f'<a href="{html.escape(u["url"])}" target="_blank" rel="noopener">'
                      + (html.escape(u["paket"]) if u["gruppe"] else f'<span translate="no">{html.escape(u["paket"])}</span>')
                      + (f' {html.escape(u["version"])}' if u["version"] else "") + "</a>"
                      + (f' <span class="hbrest">{html.escape(seit_text(u["seit"]))}</span>' if u["seit"] is not None else "")
-                     for u in k["updates"])
+                     for u in updates)
 
 
 def server_wert(k):
@@ -952,12 +955,13 @@ def projekte(c, heute, jetzt):
             kurz.append(sprung("server", hinter_text("kurz.server", d, r["default_branch"])))
         # Zweige mit dem Präfix dependabot/ (25.09.2026) zählen nicht einzeln: je Repo eine Zahl, im Block eine Zeile mit Link auf die
         # offenen Pull Requests von Dependabot, in der Befundspalte «N Dependabot-Updates».
-        dep_seit = []
+        dep_seit, ren_seit = [], []
         for z in zweige.get(r["repo"], []):
             if z["ahead"] > 0:
                 seit = (heute - datum(z["letzter_utc"])).days if z["letzter_utc"] else None
-                if z["name"].startswith(DEPENDABOT_PRAEFIX):
-                    dep_seit.append(dependabot_update(r["html_url"] or f'https://github.com/{r["repo"]}', z["name"], seit))
+                if z["name"].startswith((DEPENDABOT_PRAEFIX, RENOVATE_PRAEFIX)):
+                    (dep_seit if z["name"].startswith(DEPENDABOT_PRAEFIX) else ren_seit).append(
+                        dependabot_update(r["html_url"] or f'https://github.com/{r["repo"]}', z["name"], seit))
                     continue
                 # Ohne Zeitstempel bleibt der Zweig ein Befund: ein unbekanntes Alter wird nicht als frisch gewertet. Ein frischer Zweig
                 # steht als Information gedämpft in der Zeile, ohne Link, weil er keinen Eintrag im Handlungsbedarf hat.
@@ -970,6 +974,8 @@ def projekte(c, heute, jetzt):
         dep_seit.sort(key=lambda u: u["gruppe"])   # Gruppenupdates ans Ende des Eintrags (03.10.2026), sonst Reihenfolge der Zweige
         if dep_seit:
             kurz.append(sprung("dependabot", t("kurz.dependabot", len(dep_seit))))
+        if ren_seit:
+            kurz.append(sprung("renovate", t("kurz.renovate", len(ren_seit))))
         # CI und Sicherheitswarnungen (25.09.2026) als Befund wie die Zweige: kein Rot, der Text in der Befundspalte der Zeile.
         p = pruef.get(r["repo"])
         ci = {"workflow": p["ci_workflow"] or t("ci.workflow"), "alter": alter_text(p["ci_utc"], (heute - datum(p["ci_utc"])).days, jetzt)} \
@@ -1003,7 +1009,7 @@ def projekte(c, heute, jetzt):
             "ci_fehler": p["ci_fehler"] if p else None, "sicher_fehler": p["sicher_fehler"] if p else None, "messung": messung,
             "warnliste": warn_je.get(r["repo"], []) if warn else [], "dependabot": dependabot,
             "url": r["html_url"] or f'https://github.com/{r["repo"]}', "dependabot_zweige": len(dep_seit),
-            "updates": dep_seit, "server_befund": server_befund,
+            "updates": dep_seit, "renovate_zweige": len(ren_seit), "renovate_updates": ren_seit, "server_befund": server_befund,
         })
     # Nach letztem Commit, neuester zuerst, unabhängig von Zustand oder Befund: der Befund steht als
     # Zweigzeile in der Karte und im Lagesatz, nicht als Rang und nicht als blauer Rahmen (Blau liest
@@ -1043,16 +1049,17 @@ def befund(ser, karten, summe, sieben=False):
     rot = sum(1 for k in karten if k.get("ci"))
     gewarnt = sum(1 for k in karten if k.get("warn"))
     updates = sum(1 for k in karten if k.get("dependabot_zweige"))   # je Repo ein Punkt, nicht je Zweig
+    renovate = sum(1 for k in karten if k.get("renovate_zweige"))
     abruf = sum(1 for k in karten if k.get("abruf"))   # Repos, die GitHub im letzten Lauf abwies (26.09.2026)
     messung = sum(1 for k in karten if k.get("messung"))   # Repos mit einem nicht gemessenen Stand (03.10.2026)
     # Eine Art: ihr eigener Satz wie bisher (bis 13.09.2026 hängte ein «n» an «wartet» und schrieb «wartetn»). Mehrere Arten: ein Satz
     # «N Punkte mit Handlungsbedarf.» (25.09.2026), damit der Lagesatz bei 1280 px einzeilig bleibt; die Arten nennt Kopfspalte 3.
     arten = [(n, s_, a) for n, s_, a in ((abruf, "lage.abruf", "abruf"), (messung, "lage.messung", "messung"), (zweige, "lage.zweige", "zweige"), (rot, "lage.ci", "ci"),
-                                          (server, "lage.server", "server"), (gewarnt, "lage.warn", "warn"), (updates, "lage.dependabot", "dependabot")) if n]
+                                          (server, "lage.server", "server"), (gewarnt, "lage.warn", "warn"), (updates, "lage.dependabot", "dependabot"), (renovate, "lage.renovate", "renovate")) if n]
     if len(arten) == 1:
         teile.append(art_satz(arten[0][2], arten[0][1], arten[0][0], karten))
     elif arten:
-        teile.append(t("lage.punkte", abruf + messung + zweige + rot + server + gewarnt + updates))
+        teile.append(t("lage.punkte", abruf + messung + zweige + rot + server + gewarnt + updates + renovate))
     # Gleicher Zweigname und gleicher Stand (vor, dahinter, Zielzweig, Alter) ergeben eine Zeile mit allen Repos. Das Alter
     # gehört zum Stand: ein Sammelalter über verschieden alte Zweige wäre eine erfundene Zahl.
     gruppen = {}
@@ -1958,11 +1965,12 @@ def ring_html(rang, summe, repos_n, montag, sieben=False):
 
 # Reihenfolge in Kopfspalte und Block. «abruf» (26.09.2026) zuerst: ein nicht abrufbares Repo macht alle übrigen Angaben zu ihm unsicher.
 # «messung» (03.10.2026, Codex-Audit) direkt danach: ein Stand, der nicht gemessen werden konnte, ist ein Befund und nie «Kein Handlungsbedarf».
-BEFUND_ARTEN = (("abruf", "bf.abruf"), ("messung", "bf.messung"), ("warn", "bf.warn"), ("ci", "bf.ci"), ("server", "bf.server"), ("zweige", "bf.zweige"), ("dependabot", "bf.dependabot"))
+BEFUND_ARTEN = (("abruf", "bf.abruf"), ("messung", "bf.messung"), ("warn", "bf.warn"), ("ci", "bf.ci"), ("server", "bf.server"), ("zweige", "bf.zweige"), ("dependabot", "bf.dependabot"), ("renovate", "bf.renovate"))
 # Hat ein Repo einen Befund dieser Art? Eine Stelle für Kopfzahl, Kopfzeilen und Block (02.10.2026).
 HAT_ART = {"abruf": lambda k: k.get("abruf"), "messung": lambda k: k.get("messung"), "warn": lambda k: k.get("warn"), "ci": lambda k: k.get("ci"), "server": lambda k: k.get("server_befund"),
-           "zweige": lambda k: k.get("befunde"), "dependabot": lambda k: k.get("dependabot_zweige")}
+           "zweige": lambda k: k.get("befunde"), "dependabot": lambda k: k.get("dependabot_zweige"), "renovate": lambda k: k.get("renovate_zweige")}
 DEPENDABOT_PRAEFIX = "dependabot/"
+RENOVATE_PRAEFIX = "renovate/"
 HB_SPALTE = 2   # so viele Einträge stehen untereinander in einer Spalte, mehr fliessen über die volle Breite (09.10.2026)
 HANDLUNG_FEST = ("warn", "ci", "server")   # Arten, die im Block immer stehen, ohne Befund in der Zeile «0 …» (04./09.10.2026)
 # Zeichen für ?handlung=: je aufgeklapptem Warnungseintrag «warn:<owner>/<repo>», durch Komma getrennt. Seit 04.10.2026 stehen alle
@@ -2159,16 +2167,16 @@ def handlung_block(c, heute, jetzt, offen=frozenset()):
         return eintrag(k, "zweige", [(f'<code translate="no">{html.escape(b["zweig"])}</code> {html.escape(stand)}{rest_html(seit)}', "")],
                        t("zweig.voll", b["zweig"], k["name"], stand) + (f", {seit}" if seit else ""), zweig=b["zweig"])
 
-    def update_eintrag(k):
+    def update_eintrag(k, art, updates):
         """Je Update eine Unterzeile (03.10.2026): Paket und Zielversion als Link auf den PR in Textfarbe, gedämpft das Alter; Gruppenupdates
         stehen am Ende (projekte sortiert sie dorthin)."""
-        titel = f'{k["name"]}: ' + ", ".join(f'{u["paket"]} {u["version"]}'.strip() for u in k["updates"])
+        titel = f'{k["name"]}: ' + ", ".join(f'{u["paket"]} {u["version"]}'.strip() for u in updates)
         zeilen = [f'<a href="{html.escape(u["url"])}" target="_blank" rel="noopener">'
                   + (html.escape(u["paket"]) if u["gruppe"] else f'<span translate="no">{html.escape(u["paket"])}</span>')
                   + (f' {html.escape(u["version"])}' if u["version"] else "") + "</a>"
-                  + rest_html(seit_text(u["seit"]) if u["seit"] is not None else "") for u in k["updates"]]
+                  + rest_html(seit_text(u["seit"]) if u["seit"] is not None else "") for u in updates]
         zeilen = [(z, "") for z in zeilen]
-        return eintrag(k, "dependabot", zeilen, titel, k["url"] + "/pulls?q=is:pr+is:open+author:app/dependabot")
+        return eintrag(k, art, zeilen, titel, k["url"] + f"/pulls?q=is:pr+is:open+author:app/{art}")
 
     def server_eintrag(k):
         """Server hinter main (03.10.2026 als Unterzeilen): gedämpft «läuft <hash> · N hinter main», darunter je nicht ausgerollter Commit
@@ -2202,7 +2210,8 @@ def handlung_block(c, heute, jetzt, offen=frozenset()):
     eintraege = {"abruf": [abruf_eintrag(k) for k in karten if k.get("abruf")], "messung": [messung_eintrag(k) for k in karten if k.get("messung")], "warn": [warn_eintrag(k) for k in warn],
                  "ci": [ci_eintrag(k) for k in karten if k.get("ci")], "server": [server_eintrag(k) for k in karten if k.get("server_befund")],
                  "zweige": [zweig_eintrag(k, b) for k in karten for b in k["befunde"]],
-                 "dependabot": [update_eintrag(k) for k in karten if k.get("dependabot_zweige")]}
+                 "dependabot": [update_eintrag(k, "dependabot", k["updates"]) for k in karten if k.get("dependabot_zweige")],
+                 "renovate": [update_eintrag(k, "renovate", k["renovate_updates"]) for k in karten if k.get("renovate_zweige")]}
 
     # Seit 09.10.2026 dicht gepackt: Arten aus HANDLUNG_FEST ohne Befund stehen zusammen in einer gedämpften Zeile unter dem Titel
     # («0 Repos mit Sicherheitswarnungen · 0 Actions-Läufe fehlgeschlagen · 0 Dienste hinter main»), jedes Stück Sprungziel seiner Art.
@@ -2453,7 +2462,9 @@ def projekt_stand(k, woche, woche_vor, zeilen=None, zeilen_vor=None):
     if k["server"]:
         felder.append((t("ps.server"), server_wert(k), ""))
     if k.get("updates"):
-        felder.append((t("ps.dependabot"), dependabot_wert(k), ""))
+        felder.append((t("ps.dependabot"), dependabot_wert(k["updates"]), ""))
+    if k.get("renovate_updates"):
+        felder.append((t("ps.renovate"), dependabot_wert(k["renovate_updates"]), ""))
     if k.get("befunde"):
         felder.append((t("ps.zweige"), ", ".join(f'<span translate="no">{html.escape(b["zweig"])}</span> {html.escape(t("zweig.stand", b["ahead"], b["behind"], b["branch"]))}'
                                                  + (f' <span class="hbrest">{html.escape(seit_text(b["seit"]))}</span>' if b["seit"] is not None else "") for b in k["befunde"]), ""))

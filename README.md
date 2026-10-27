@@ -51,7 +51,7 @@ Rules in INPUT and DOCKER-USER per IP family, whether they survive a reboot, and
 
 ### Needs attention
 
-Everything that needs you in one block: security alerts, failed Actions runs, services behind the default branch, waiting branches, Dependabot updates and values that could not be measured.
+Everything that needs you in one block: security alerts, failed Actions runs, services behind the default branch, waiting branches, Dependabot and Renovate updates and values that could not be measured.
 
 <img alt="Needs attention block: one repository with security alerts at runtime, one failed Actions run, one service two commits behind main with the missing commit subjects, one branch waiting on main and two repositories with Dependabot group updates" src="docs/screenshots/needs-attention.png">
 

@@ -11,7 +11,7 @@ import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from tests.test_audit import WURZEL, beispiel, commit, iso, programme, repo_zeile, serverstand, umgebung
+from tests.test_audit import WURZEL, beispiel, commit, git_lauf, iso, programme, repo_zeile, serverstand, umgebung
 
 PRUEFUNGEN = {}
 
@@ -244,7 +244,7 @@ def c2():
 def c9():
     werk = Path(tempfile.mkdtemp())
     ursprung, klon = werk / "ursprung", werk / "klon"
-    git = lambda *a, cwd=ursprung: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+    git = lambda *a, cwd=ursprung: git_lauf(*a, cwd=cwd, text=True).stdout.strip()
     ursprung.mkdir()
     git("init", "-q", "-b", "main")
     git("config", "user.email", "t@example.org"); git("config", "user.name", "t")
@@ -471,7 +471,7 @@ def c4():
         (d / "app.py").write_text("print(1)\n")
     subprocess.run(["cp", str(WURZEL / "deploy" / "ausrollprobe.sh"), str(repo / "deploy")], check=True)
     subprocess.run(["cp", str(WURZEL / "tools" / "copy-quellen.awk"), str(repo / "tools")], check=True)
-    git = lambda *a: subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True)
+    git = lambda *a: git_lauf(*a, cwd=repo)
     git("init", "-q"); git("config", "user.email", "t@example.org"); git("config", "user.name", "t"); git("add", "-A"); git("commit", "-qm", "x")
     # docker exec führt das Skript lokal aus, /app ist der Ordner app
     docker = ('case "$1" in inspect) echo gitpuls:x;; exec) shift 2; [ "$1" = bash ] && [ "$2" = -c ] || exit 9; '

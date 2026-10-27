@@ -2350,7 +2350,7 @@ assert zeilen_x[0][0] == "Zweig work/x in b: 2 Commits vor main, seit 4 Tagen" a
 def befundspalte(zweige_):
     c = db.verbinden(schreibend=True); c.execute("DELETE FROM zweige")
     # Gewöhnliche Zweige 4 Tage vor jk (älter als die Zweigfrist), Dependabot-Zweige 1 Tag: die Frist gilt für sie nicht, sie bleiben Befund.
-    c.executemany("INSERT INTO zweige (repo, name, ahead, behind, letzter_utc) VALUES (?, ?, ?, 0, ?)", [(r_, n_, a_, "2026-09-23T10:00:00Z" if n_.startswith("dependabot/") else "2026-09-20T10:00:00Z")
+    c.executemany("INSERT INTO zweige (repo, name, ahead, behind, letzter_utc) VALUES (?, ?, ?, 0, ?)", [(r_, n_, a_, "2026-09-23T10:00:00Z" if n_.startswith(("dependabot/", "renovate/")) else "2026-09-20T10:00:00Z")
                                                               for r_, n_, a_ in zweige_]); c.commit(); c.close()
     sx = web.seite(jetzt=jk)
     return sx.count("blockfehler"), sx[sx.index('<div class="n befunde">'):sx.index('<div class="n"><b>', sx.index('<div class="n befunde">'))], sx
@@ -2405,6 +2405,27 @@ fd1, bd1, sd1 = befundspalte([("fernwerk-studio/a", "dependabot/pip/x", 1)])
 assert bd1.startswith('<div class="n befunde"><b>1</b><div class="bunter"><ul class="barten"><li><a href="#handlung-dependabot">1 Repo mit Dependabot-Updates</a></li></ul>') and nb("Ein Repo hat offene Dependabot-Updates.") in sd1, bd1[:300]
 assert '<span translate="no">dependabot/pip/x</span></a> <span class="hbrest">seit 1 Tag</span>' in sd1 \
     and '<span class="pbefund"><a href="#hb-dependabot-fernwerk-studio_2f_a">1 Dependabot-Update</a></span>' in summary_von(sd1, "fernwerk-studio/a"), ("Singular", summary_von(sd1, "fernwerk-studio/a")[-300:])
+# Renovate-Zweige (27.10.2026) gleichwertig: eigene Art nach Dependabot, Link auf die offenen Pull Requests von renovate[bot], je Update
+# Paket und Zielversion aus dem Zweignamen, ohne Muster der Zweigname; im Kopf ein Punkt je Repo, in der Projektzeile «N Renovate-Updates».
+fr, br, sr = befundspalte([("fernwerk-studio/a", "renovate/astro-5.x", 1), ("fernwerk-studio/a", "renovate/lock-file-maintenance", 1),
+                           ("fernwerk-studio/b", "dependabot/pip/x", 1)])
+assert fr == 0 and br.startswith('<div class="n befunde"><b>2</b><div class="bunter"><ul class="barten">'
+                                 '<li><a href="#handlung-dependabot">1 Repo mit Dependabot-Updates</a></li><li><a href="#handlung-renovate">1 Repo mit Renovate-Updates</a></li></ul>'), br[:600]
+assert nb("Zwei Punkte mit Handlungsbedarf.") in sr and sr.index('id="handlung-dependabot"') < sr.index('id="handlung-renovate"')
+hr = sr[sr.index('id="handlung-renovate"'):sr.index('<section class="card projekte">')]
+eintrag_r = re.search(r'<li id="hb-renovate-fernwerk-studio_2f_a" title="([^"]*)">(.*?)</li>', hr)
+assert eintrag_r and hr.startswith('id="handlung-renovate">1 Repo mit Renovate-Updates</p>') and eintrag_r[2].startswith(
+    '<a class="hbrepo" href="https://github.com/fernwerk-studio/a/pulls?q=is:pr+is:open+author:app/renovate" target="_blank" rel="noopener">a</a><span class="hbz">'), hr[:700]
+assert eintrag_r[1] == "a: astro 5.x, renovate/lock-file-maintenance", eintrag_r[1]
+assert "https://github.com/fernwerk-studio/a/pulls?q=is%3Apr%20is%3Aopen%20head%3A" + web.quote("renovate/astro-5.x") in eintrag_r[2], eintrag_r[2]
+assert '2 Renovate-Updates' in zeile_von(sr, "fernwerk-studio/a") and "Zweig renovate/" not in sr, "Projektzeile: Zahl statt Zweigbefund"
+for z_, (p_, v_) in {"renovate/maplibre-gl-6.x": ("maplibre-gl", "6.x"), "renovate/astrojs-react-4.2.1": ("astrojs-react", "4.2.1"),
+                     "renovate/all-minor-patch": ("renovate/all-minor-patch", "")}.items():
+    u_ = web.dependabot_update("https://github.com/fernwerk-studio/r", z_, 2)
+    assert not u_["gruppe"] and (u_["paket"], u_["version"]) == (p_, v_), (z_, u_)
+fr1, br1, sr1 = befundspalte([("fernwerk-studio/a", "renovate/zod-4.x", 1)])
+assert br1.startswith('<div class="n befunde"><b>1</b><div class="bunter"><ul class="barten"><li><a href="#handlung-renovate">1 Repo mit Renovate-Updates</a></li></ul>') and nb("Ein Repo hat offene Renovate-Updates.") in sr1, br1[:300]
+assert '<span class="pbefund"><a href="#hb-renovate-fernwerk-studio_2f_a">1 Renovate-Update</a></span>' in summary_von(sr1, "fernwerk-studio/a"), ("Singular", summary_von(sr1, "fernwerk-studio/a")[-300:])
 # Ohne Obergrenze (04.10.2026, vorher 3 je Art und «alle N anzeigen»): alle sieben Einträge stehen ohne Klick da, kein Aufklapper;
 # die alten Zeichen «zweige-alle» und «zweige» in ?handlung= werden übergangen.
 f7, b7, s7 = befundspalte([("fernwerk-studio/a", f"feature/z{i}", 1) for i in range(7)])

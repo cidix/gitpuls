@@ -28,6 +28,15 @@ def pruefung(name, befund):
     return setzen
 
 
+
+# Git in den temporären Test-Repos ohne globale und System-Konfiguration des Rechners (27.10.2026): ein globaler Hook oder Signierzwang
+# lehnte dort sonst jeden Commit ab, und die Prüfung hinge an der Maschine statt am Code.
+GIT_ISOLIERT = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+def git_lauf(*a, **kw):
+    return subprocess.run(["git", *a], env={**os.environ, **GIT_ISOLIERT}, check=True, capture_output=True, **kw)
+
 def umgebung(sprache="de", **mehr):
     """Eigene Datenbank und feste Zone vor dem ersten Import von app.*; liefert (db, web)."""
     os.environ.update({"GITPULS_DB": os.path.join(tempfile.mkdtemp(), "audit.db"), "GITPULS_ADRESSEN": "dev@example.org",
@@ -161,7 +170,7 @@ def s16():
 @pruefung("bildrelevant", "Punkt 6: bildrelevant.sh mit pipefail und einem COPY-Parser, der die JSON-Form versteht; ausrollprobe ebenso")
 def bildrelevant():
     g = tempfile.mkdtemp()
-    git = lambda *a: subprocess.run(["git", "-C", g, *a], check=True, capture_output=True, text=True).stdout.strip()
+    git = lambda *a: git_lauf("-C", g, *a, text=True).stdout.strip()
     git("init", "-q"); git("config", "user.email", "a@b"); git("config", "user.name", "a")
     os.makedirs(os.path.join(g, "app"))
     Path(g, "Dockerfile").write_text('FROM x\nCOPY ["app/", "./app/"]\n')
@@ -754,7 +763,7 @@ def release_welt():
     README. Container A läuft aus dem Release-Bild 1.0.3, B aus 1.0.2 (beide mit den OCI-Labels von release.yml), C aus dem Commit c2."""
     werk = Path(tempfile.mkdtemp())
     ursprung, klon = werk / "ursprung", werk / "klon"
-    git = lambda *a, cwd=ursprung: subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+    git = lambda *a, cwd=ursprung: git_lauf(*a, cwd=cwd, text=True).stdout.strip()
     ursprung.mkdir()
     git("init", "-q", "-b", "main"); git("config", "user.email", "t@example.org"); git("config", "user.name", "t")
     (ursprung / "Dockerfile").write_text("FROM x\nCOPY app.py ./\n")
@@ -816,7 +825,7 @@ def version_probe():
     (repo / "Dockerfile").write_text("FROM x\nCOPY app.py ./\n")
     subprocess.run(["cp", str(WURZEL / "deploy" / "ausrollprobe.sh"), str(repo / "deploy")], check=True)
     subprocess.run(["cp", str(WURZEL / "tools" / "copy-quellen.awk"), str(repo / "tools")], check=True)
-    git = lambda *a: subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True)
+    git = lambda *a: git_lauf(*a, cwd=repo)
     git("init", "-q"); git("config", "user.email", "t@example.org"); git("config", "user.name", "t")
     (repo / "app.py").write_text("print(1)\n"); git("add", "-A"); git("commit", "-qm", "1.0.1"); git("tag", "v1.0.1")
     (repo / "app.py").write_text("print(2)\n"); git("commit", "-qam", "danach")   # main ist dem Release voraus
