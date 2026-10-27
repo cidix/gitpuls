@@ -6,6 +6,19 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-27
+
+### Added
+
+- Open Renovate updates (branches `renovate/`) count like Dependabot updates: their own kind in the Needs attention
+  block with a link to the open pull requests of renovate[bot], package and target version from the branch name,
+  a point per repo in the header and the status sentence, and "N Renovate updates" in the project row.
+
+### Changed
+
+- Tests that create temporary Git repositories run Git without the global and system configuration of the machine,
+  so a global hook or signing rule no longer fails them.
+
 ## [2.1.0] - 2026-10-26
 
 ### Added
@@ -130,7 +143,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/cidix/gitpuls/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cidix/gitpuls/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cidix/gitpuls/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/cidix/gitpuls/compare/v1.0.4...v1.1.0
