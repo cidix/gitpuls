@@ -1,9 +1,7 @@
-# Build und Unit-Tests bei Push und Pull Request, sonst nichts. Actions per Commit-SHA gepinnt (Lieferkette), Rechte nur lesend.
+# Build und Unit-Tests nur von Hand (workflow_dispatch); gebaut und getestet wird auf dem Mac (30.10.2026). Actions per Commit-SHA gepinnt (Lieferkette), Rechte nur lesend.
 name: ci
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

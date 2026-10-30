@@ -1,12 +1,12 @@
-# Nur bei Tags v*: Image für linux/amd64 und linux/arm64 bauen, nach ghcr.io/cidix/gitpuls pushen und mit Build-Provenance belegen. Schreibrechte nur in diesem Job.
+# Nur von Hand auf einem Tag v* (gh workflow run release --ref v<Fassung>, seit 30.10.2026 kein Auslöser bei Push): Image für linux/amd64 und linux/arm64 bauen, nach ghcr.io/cidix/gitpuls pushen und mit Build-Provenance belegen. Schreibrechte nur in diesem Job.
 name: release
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   image:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
