@@ -567,7 +567,7 @@ assert not any(d in " ".join(regeln[".pliste"]) for d in ("background", "border"
 assert ".tiles3, .nums, .hraster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s4); }" in css, "eine Regel für Kacheln und Kopfreihe"
 assert "@media (max-width: 820px) { .tiles3, .nums, .hraster, .rraster { grid-template-columns: 1fr; } }" in css
 # Serverzone (27.09.2026): Lage und Dienste ohne Fläche, auf der Spaltenregel der Fussblöcke; die Fussblöcke behalten ihre Kacheln.
-assert regeln[".zwei"][0].count("repeat(auto-fit, minmax(min(26rem, 100%), 1fr))") == 1 and regeln[".fuss"][0].count("repeat(auto-fit, minmax(min(26rem, 100%), 1fr))") == 1
+assert regeln[".zwei"][0].count("repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr))") == 1 and regeln[".fuss"][0].count("repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr))") == 1
 assert "background" not in " ".join(regeln[".zone.server .tile"]) and "border" not in " ".join(regeln[".zone.server .tile"]) and "background: var(--card)" in regeln[".meta"][0]
 # Kopfspalte 3 (26.09.2026): Serie und Repos untereinander in einer Spalte, beide Zahlen über dieselbe Regel .n b (gleiche Grösse).
 assert "grid-template-columns: minmax(0, 1fr);" in " ".join(regeln[".npaar"]) and "repeat(2" not in " ".join(regeln[".npaar"]) and "min-width: 0" in " ".join(regeln[".npaar"]), regeln.get(".npaar")
@@ -3016,7 +3016,7 @@ assert 'ARG GITPULS_VERSION=""' in dockerfile_ and "ENV GITPULS_VERSION=$GITPULS
 assert "build-args: GITPULS_VERSION=${{ steps.meta.outputs.version }}" in (web.WEB.parent.parent / ".github" / "workflows" / "release.yml").read_text()
 print("ok: Version aus dem Bild vor GITPULS_TAG, ohne Build-Argument der Commit")
 
-# Dienstzeile auf festen Spuren (05.11.2026): Punkt, Name, Port, Zeit, Zustand als ein Wort, Chevron; die Sätze der Zeile sind weg, der Zweck steht im Detail.
+# Dienstzeile auf festen Spuren (05.11.2026): Punkt, Name, Port, Zustand als ein Wort, Zeit, Chevron unter einer Kopfzeile; die Sätze der Zeile sind weg, der Zweck steht im Detail.
 sp_ = json.loads((Path(__file__).parent / "server.beispiel.json").read_text())
 sp_["erhoben_utc"] = web.iso_utc(jetzt)
 for d_ in sp_["dienste"]:
@@ -3024,10 +3024,15 @@ for d_ in sp_["dienste"]:
 sp_["dienste"][0]["link"] = "https://host-01.example.ts.net/"
 heute_ = jetzt.astimezone(web.TZ).date()
 SPUREN = re.compile(r'<summary><i class="punkt \w+" aria-hidden="true"></i><a class="pname" href="[^"]*" translate="no">[^<]*</a>'
-                    r'<span class="palter dport">\d+</span>'
-                    r'<span class="palter dzeit">[^<]*</span><span class="palter dzustand">.*?</span><span class="chev" aria-hidden="true"></span></summary>')
+                    r'<span class="palter dport">\d+</span><span class="palter dzustand">.*?</span>'
+                    r'<span class="palter">[^<]*</span><span class="chev" aria-hidden="true"></span></summary>')
 block_ = web.server_dienste_block(sp_, jetzt)
 assert len(SPUREN.findall(block_)) == len(sp_["dienste"]) == block_.count('class="dienst"'), block_[:600]
+kopfzeile_ = lambda *k: f'<p class="pgruppe spalten dkopf"><span class="dname">{k[0]}</span><span class="dport">{k[1]}</span><span class="dzustand">{k[2]}</span><span class="pkalter">{k[3]}</span></p>'
+assert block_.startswith(kopfzeile_("Dienst", "Port", "Zustand", "Zuletzt") + '<details class="dienst">') and block_.count("dkopf") == 1, block_[:300]
+with sprache.gilt("en"):
+    assert web.server_dienste_block(sp_, jetzt).startswith(kopfzeile_("Service", "Port", "Status", "Last run"))
+assert web.server_dienste_block({**sp_, "dienste": []}, jetzt) == "", "ohne Zeile kein Kopf"
 assert 'class="palter dport">443<' in block_ and 'class="palter dport">8447<' in block_, "Port aus dem Link, ohne Angabe der Standardport"
 assert (web.link_port("https://a.example:99999/"), web.link_port(None), web.link_port("http://a.example/")) == ("", "", 80)
 assert "aussage" not in block_ and "aussage" not in (web.WEB / "style.css").read_text()
@@ -3044,7 +3049,7 @@ assert web.lauf_zeit(web.iso_utc(jetzt - timedelta(days=3)), heute_) == web.fmt.
 def zustand_(aenderung):
     x = json.loads(json.dumps(sp_))
     aenderung(x["dienste"][0])
-    return re.search(r'<span class="palter dzustand">(.*?)</span><span class="chev"', web.server_dienste_block(x, jetzt).split('<details class="dienst">')[1]).group(1)
+    return re.search(r'<span class="palter dzustand">(.*?)</span><span class="palter">', web.server_dienste_block(x, jetzt).split('<details class="dienst">')[1]).group(1)
 FAELLE = (("sauber", "clean", lambda d: None), ("läuft", "running", lambda d: d["timer"][0].update(status="active", gestartet_utc=web.iso_utc(jetzt))),
           ("kein Lauf", "no run", lambda d: d.update(container=[], timer=[])), ("ohne Timer", "no timer", lambda d: d.update(timer=[])),
           ("Fehler", "error", lambda d: d["timer"][0].update(ergebnis="exit-code", exit=1)))
@@ -3055,11 +3060,16 @@ for de_, en_, f_ in FAELLE:
 assert 'glut' in zustand_(FAELLE[-1][2]) and "nicht gemessen" in zustand_(lambda d: d["timer"][0].update(status="ungemessen", grund="kein Zugriff")), "nicht gemessen bleibt keine Aussage über den Lauf"
 # Spuren, Chevron und Abstand im Stil: mindestens --s6 zwischen den Spuren, nur bis 500 px enger, weil sechs Spuren dort nicht passen.
 css_ = (web.WEB / "style.css").read_text()
-assert 'grid-template-columns: .625rem minmax(0, 7rem) 2rem minmax(3.5rem, 1fr) 4.5rem .75rem;\n  grid-template-areas: "punkt name port alter zustand chev"; column-gap: var(--s6);' in css_
-assert css_.count("details.dienst summary { grid-template-columns:") == 1 and "details.dienst summary { font-size: .8rem; }" in css_[css_.index("@media (max-width: 700px)"):css_.index(".fuss bricht über")]
-assert "@media (max-width: 500px) { details.dienst summary { grid-template-columns: .625rem minmax(0, 1fr) 2rem 3rem 4.5rem .75rem; column-gap: var(--s2); } }" in css_
+kopf_und_zeile = "details.dienst summary, .pgruppe.spalten.dkopf { "
+assert kopf_und_zeile + 'display: grid; grid-template-columns: .625rem minmax(0, 7rem) 2.25rem 6.25rem 4.125rem minmax(.75rem, 1fr);\n  grid-template-areas: "punkt name port zustand alter chev"; column-gap: var(--s6); }' in css_, "Folge und Abstand, freier Raum nur in der Spur des Chevrons"
+assert kopf_und_zeile + "grid-template-columns: .625rem minmax(0, 7rem) 2rem 6rem 3.75rem minmax(.75rem, 1fr); }" in css_[css_.index("@media (max-width: 700px)"):css_.index(".fuss bricht über")]
+assert "@media (max-width: 500px) { " + kopf_und_zeile + "column-gap: var(--s2); } }" in css_
+assert "minmax(min(28.5rem, 100%), 1fr)" in css_, "die zwei Kacheln stapeln, bevor die sechs Spuren mit --s6 nicht mehr passen"
+# Die Zustandsspur trägt das längste Zustandswort beider Sprachen: «nicht gemessen», im Browser gemessen 99.5 px bei 13.6 px (Spur 100 px) und 94.4 px bei 12.8 px (Spur 96 px).
+worte_ = [q.T[k] for q in (web.texte_de, web.texte_en) for k in ("dn.w_sauber", "dn.w_laeuft", "dn.w_kein_lauf", "dn.w_ohne_timer", "dn.w_fehler", "dn.nicht_gemessen")]
+assert max(worte_, key=len) == "nicht gemessen" == web.texte_de.T["dn.nicht_gemessen"], worte_
 assert "details.dienst[open] .chev" in css_ and ".chev { grid-area: chev;" in css_
-assert "details.dienst .dport { grid-area: port; } details.dienst .dzeit { justify-self: end; } details.dienst .dzustand { grid-area: zustand; }" in css_, "ohne den Vorfahren gewinnt das spätere .palter, und Port, Zeit und Zustand liegen in einer Spur übereinander"
+assert ".tile.dienste .dname { grid-area: name; } .tile.dienste .dport { grid-area: port; } .tile.dienste .dzustand { grid-area: zustand; }" in css_, "ohne den Vorfahren gewinnt das spätere .palter, und Port, Zeit und Zustand liegen in einer Spur übereinander"
 # Farben: Textfarbe rein schwarz und weiss; in der aktiven Gruppe Name und Alter in Textfarbe, die ruhende bleibt gedämpft.
 assert "--txt: light-dark(#000000, #FFFFFF);" in (web.WEB / "tokens.css").read_text()
 assert ".pliste.aktiv .pname, .pliste.aktiv .palter, details.dienst .palter { color: var(--txt); }" in css_ and ".palter { grid-area: alter; color: var(--lbl);" in css_

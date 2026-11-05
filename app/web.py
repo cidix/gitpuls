@@ -1669,7 +1669,7 @@ def lauf_zeit(iso_s, heute):
 
 
 def server_dienste_block(s, jetzt):
-    """Die Dienste als Zeilen auf festen Spuren (Punkt, Name als Link, Port, letzter Lauf mit Zustand als einem Wort, Chevron) mit
+    """Die Dienste als Zeilen auf festen Spuren (Punkt, Name als Link, Port, Zustand als ein Wort, letzter Lauf, Chevron) unter einer Kopfzeile mit
     aufklappbarem Detail. Ein konfigurierter Container oder Timer, den der Serverstand nicht findet, steht im Detail mit dem gesuchten
     Namen und «nicht gefunden, tools/dienste.json prüfen»: die Tabelle ist dann veraltet, nicht der Dienst kaputt."""
     heute = jetzt.astimezone(TZ).date()
@@ -1764,8 +1764,8 @@ def server_dienste_block(s, jetzt):
                 dep = f'<span class="glut">{t("dn.veraltet", zeitpunkt(dp["gemessen"]))}: {dep}</span>'
         det.append(f'<div class="dz"><span class="dk">{t("dn.stand_k")}</span><span>{dep}</span></div>')
         return (f'<details class="dienst"><summary><i class="punkt {punkt}" aria-hidden="true"></i><a class="pname" href="{html.escape(d.get("link") or "")}" translate="no">{html.escape(d["name"])}</a>'
-                f'<span class="palter dport">{link_port(d.get("link"))}</span>'
-                f'<span class="palter dzeit">{lauf_zeit(zeit, heute)}</span><span class="palter dzustand">{zustand}</span>'
+                f'<span class="palter dport">{link_port(d.get("link"))}</span><span class="palter dzustand">{zustand}</span>'
+                f'<span class="palter">{lauf_zeit(zeit, heute)}</span>'
                 f'<span class="chev" aria-hidden="true"></span></summary><div class="ddetail">{"".join(det)}</div></details>')
 
     def ungueltig(d, grund):
@@ -1786,7 +1786,9 @@ def server_dienste_block(s, jetzt):
             zeilen.append(ungueltig(d, t("dn.eintrag_ungueltig", type(e).__name__)))
     if not zeilen and "dienste" in (s.get("ungemessen") or {}):   # keine Diensttabelle auf dem Host (10.10.2026)
         return f'<p class="sub glut">{t("sv.dienste_ungemessen", html.escape(s["ungemessen"]["dienste"]))}</p>'
-    return "".join(zeilen)
+    kopf = (f'<p class="pgruppe spalten dkopf"><span class="dname">{t("dn.k_dienst")}</span><span class="dport">{t("dn.k_port")}</span>'
+            f'<span class="dzustand">{t("dn.k_zustand")}</span><span class="pkalter">{t("dn.k_zuletzt")}</span></p>')
+    return (kopf if zeilen else "") + "".join(zeilen)
 
 
 def mz(k, v, klasse="", title=""):

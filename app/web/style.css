@@ -130,7 +130,7 @@ button:active { transform: scale(.985); }
 /* Serverzone: Lage und Dienste (Test 27.09.2026) ohne eigene Fläche direkt auf dem Zonengrund wie der Kopf der GitHub-Zone, auf
    denselben Spaltenkanten wie die Fussblöcke darunter: dieselbe Spaltenregel wie .fuss, damit beide bei derselben Breite umbrechen
    (vorher 1fr 1fr bis 820 px, .fuss brach schon bei rund 920 px auf eine Spalte). */
-.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr)); gap: var(--s4); padding-top: var(--s4); }
+.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); padding-top: var(--s4); }
 .zone.server .tile { min-width: 0; }
 .tile.lage { display: grid; gap: var(--lage-abstand); align-content: start; }
 /* In der Serverkachel kann der Satz mit vielen Abweichungen über sechs Zeilen laufen; dort balanciert Chrome nicht mehr (gemessen
@@ -140,15 +140,18 @@ button:active { transform: scale(.985); }
 .tile.dienste { display: grid; align-content: start; padding-top: var(--s1); padding-bottom: var(--s1); }
 details.dienst { margin: 0; border-top: 1px solid var(--line); }
 details.dienst:first-child { border-top: none; }
-/* Feste Spuren (05.11.2026): Punkt, Name und Port links, Zeit und Zustand rechts vor dem Chevron, dazwischen mindestens --s6. Die Zeitspur nimmt den
-   Überschuss auf und steht rechtsbündig, so bleibt der Block rechts ohne eine sechste Lücke. Zusammen 414 px in der schmalsten Kachel neben dem Lagesatz (416 px).
-   Die Schrift kommt aus .pname und .palter; .dport, .dzeit und .dzustand setzen nur die Spur. */
-details.dienst summary { display: grid; grid-template-columns: .625rem minmax(0, 7rem) 2rem minmax(3.5rem, 1fr) 4.5rem .75rem;
-  grid-template-areas: "punkt name port alter zustand chev"; column-gap: var(--s6); align-items: center; padding: .4rem 0; font-size: .85rem; line-height: 1.45; cursor: pointer; list-style: none; color: var(--txt); }
+/* Feste Spuren (05.11.2026) für Kopf und Zeilen: Punkt, Name, Port, Zustand, Zuletzt linksbündig hintereinander, freier Raum nur vor dem Chevron, dessen Spur ihn aufnimmt.
+   Gemessen 13.6 px: «nicht gemessen» 99.5 px (längstes Wort in de und en), Port 33.8 px, «12:40 PM» 61.7 px, Kopf «Last run» 64.7 px; zusammen mit --s6 456 px (.zwei).
+   Die Schrift kommt aus .pname, .palter und .pgruppe; .dname, .dport und .dzustand setzen nur die Spur. */
+details.dienst summary, .pgruppe.spalten.dkopf { display: grid; grid-template-columns: .625rem minmax(0, 7rem) 2.25rem 6.25rem 4.125rem minmax(.75rem, 1fr);
+  grid-template-areas: "punkt name port zustand alter chev"; column-gap: var(--s6); }
+.pgruppe.spalten.dkopf { padding: .4rem 0; }
+.dkopf + details.dienst { border-top: none; }
+details.dienst summary { align-items: center; padding: .4rem 0; font-size: .85rem; line-height: 1.45; cursor: pointer; list-style: none; color: var(--txt); }
 details.dienst summary::-webkit-details-marker { display: none; }
 details.dienst summary::before { content: none; }
 details.dienst summary a { font-weight: 600; }
-details.dienst .dport { grid-area: port; } details.dienst .dzeit { justify-self: end; } details.dienst .dzustand { grid-area: zustand; }   /* schlägt das spätere .palter { grid-area: alter } */
+.tile.dienste .dname { grid-area: name; } .tile.dienste .dport { grid-area: port; } .tile.dienste .dzustand { grid-area: zustand; }   /* schlägt das spätere .palter { grid-area: alter } */
 .punkt { grid-area: punkt; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lbl); align-self: center; }
 .punkt.mint { background: var(--mint); }
 .punkt.glut { background: var(--glut); }
@@ -176,10 +179,10 @@ details.dienst .dport { grid-area: port; } details.dienst .dzeit { justify-self:
 /* Zwei Spalten, seit die vier Blöcke Kacheln sind. Drei trugen rechnerisch, aber nur knapp: mit dem
    Innenabstand der Kachel blieben je Block 213 px für den Wert, der breiteste braucht 209 px. Vier
    Blöcke in drei Spalten lassen ausserdem einen allein auf der zweiten Zeile. Bei zwei Spalten stehen
-   414 px bereit, die Höhe bleibt bei zwei Zeilen. min(26rem, 100%) klemmt die Mindestbreite an den
-   Container: ohne das erzwang die Spur bei 430 px 416 px auf 357 px Platz, und die Seite scrollte
+   414 px bereit, die Höhe bleibt bei zwei Zeilen. min(28.5rem, 100%) klemmt die Mindestbreite an den
+   Container: ohne das erzwang die Spur bei 430 px die Mindestbreite auf 357 px Platz, und die Seite scrollte
    seitwärts. */
-.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr)); gap: var(--s4); }
+.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); }
 /* Wie die .card der Vorlage gegen die Zonenfläche (Lage und Dienste darüber stehen seit 27.09.2026 ohne Fläche):
    eigene Fläche, Rand, Radius, Innenabstand. Im Raster stehen sie damit von selbst auf einer
    Grundlinie und sind gleich hoch. */
@@ -537,6 +540,8 @@ details[open] > summary::before { transform: rotate(45deg); }
 @media (max-width: 700px) { details.prow > summary, .pgruppe.spalten { grid-template-columns: minmax(0, 1fr) 7rem 7.25rem 12px;
   grid-template-areas: "name wert alter chev"; column-gap: .3rem; } details.prow > summary, .pgruppe .pkw { font-size: .8rem; }
   details.dienst summary { font-size: .8rem; }
+  /* In 12.8 px: «nicht gemessen» 94.4 px, «12:40 PM» 58.5 px. Die Köpfe «Port» und «Last run» ragen hier um wenige px in die Lücke, dort steht nichts. */
+  details.dienst summary, .pgruppe.spalten.dkopf { grid-template-columns: .625rem minmax(0, 7rem) 2rem 6rem 3.75rem minmax(.75rem, 1fr); }
   .pwert { grid-template-columns: 4ch auto; column-gap: .3rem; } .prow .mikro, .pbetreff, .pbefund, .pgruppe .pkname, .pgruppe .pkmikro, .pgruppe .pkbetreff { display: none; }
   .pdetail { grid-template-columns: minmax(0, 1fr); row-gap: var(--s5); } }
 /* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: vier Spalten, dann drei, zwei, eine. */
@@ -552,8 +557,8 @@ details[open] > summary::before { transform: rotate(45deg); }
   .fbalken, .heute .uhr { display: none; }
   .hcrepo { display: none; } .hcommits { grid-template-columns: auto minmax(0, 1fr); }   /* schmal ohne Repo-Spalte */
   body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } .dz { grid-template-columns: 1fr; gap: 0; } .ddetail { padding-left: 0; } .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
-/* shortcut: bis 500 px passen sechs Spuren nicht mit --s6 (übrige Spuren 182 px, 120 px Abstand, bleiben 100 px für den Namen bei 491 px; der längste Name passt dort nicht), hier --s2; ein Umbruch auf zwei Zeilen wäre die Alternative. */
-@media (max-width: 500px) { details.dienst summary { grid-template-columns: .625rem minmax(0, 1fr) 2rem 3rem 4.5rem .75rem; column-gap: var(--s2); } }
+/* shortcut: unter 426 px kürzt der längste Name, weil die übrigen Spuren mit --s2 250 px brauchen, von 501 bis 521 px aus demselben Grund mit --s6; ein Umbruch auf zwei Zeilen wäre die Alternative. */
+@media (max-width: 500px) { details.dienst summary, .pgruppe.spalten.dkopf { column-gap: var(--s2); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 .pwarn { margin: var(--s3) 0 0; font-size: .75rem; color: var(--lbl); }
 .pwarn a { color: inherit; }
