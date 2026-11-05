@@ -130,7 +130,7 @@ button:active { transform: scale(.985); }
 /* Serverzone: Lage und Dienste (Test 27.09.2026) ohne eigene Fläche direkt auf dem Zonengrund wie der Kopf der GitHub-Zone, auf
    denselben Spaltenkanten wie die Fussblöcke darunter: dieselbe Spaltenregel wie .fuss, damit beide bei derselben Breite umbrechen
    (vorher 1fr 1fr bis 820 px, .fuss brach schon bei rund 920 px auf eine Spalte). */
-.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr)); gap: var(--s4); padding-top: var(--s4); }
+.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); padding-top: var(--s4); }
 .zone.server .tile { min-width: 0; }
 .tile.lage { display: grid; gap: var(--lage-abstand); align-content: start; }
 /* In der Serverkachel kann der Satz mit vielen Abweichungen über sechs Zeilen laufen; dort balanciert Chrome nicht mehr (gemessen
@@ -140,18 +140,25 @@ button:active { transform: scale(.985); }
 .tile.dienste { display: grid; align-content: start; padding-top: var(--s1); padding-bottom: var(--s1); }
 details.dienst { margin: 0; border-top: 1px solid var(--line); }
 details.dienst:first-child { border-top: none; }
-details.dienst summary { display: grid; grid-template-columns: 1rem 7rem minmax(0, 1fr); gap: var(--s2); align-items: baseline; padding: .4rem 0; font-size: .85rem; line-height: 1.45; cursor: pointer; list-style: none; color: var(--txt); }
+/* Spuren für Kopf und Zeilen (05.11.2026): Punkt, Name, Port, Zustand, Zuletzt linksbündig hintereinander, freier Raum nur vor dem Chevron, dessen Spur ihn aufnimmt.
+   Jede Spur ist so breit wie ihr längster Eintrag samt Kopf: das Seitenskript misst den Text und setzt --dname bis --dzuletzt, ohne Skript gelten die Werte hinter dem Komma.
+   Der Name darf bei Platzmangel kürzen. Die Schrift kommt aus .pname, .palter und .pgruppe; .dname, .dport und .dzustand setzen nur die Spur. */
+details.dienst summary, .pgruppe.spalten.dkopf { display: grid; grid-template-columns: .625rem minmax(0, var(--dname, 7rem)) var(--dport, 2.25rem) var(--dzustand, 6.8rem) var(--dzuletzt, 4.125rem) minmax(.75rem, 1fr);
+  grid-template-areas: "punkt name port zustand alter chev"; column-gap: var(--s6); }
+.pgruppe.spalten.dkopf { padding: .4rem 0; }
+.dkopf + details.dienst { border-top: none; }
+details.dienst summary { align-items: center; padding: .4rem 0; font-size: .85rem; line-height: 1.45; cursor: pointer; list-style: none; color: var(--txt); }
 details.dienst summary::-webkit-details-marker { display: none; }
 details.dienst summary::before { content: none; }
 details.dienst summary a { font-weight: 600; }
-.punkt { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lbl); align-self: center; }
+.tile.dienste .dname { grid-area: name; } .tile.dienste .dport { grid-area: port; } .tile.dienste .dzustand { grid-area: zustand; }   /* schlägt das spätere .palter { grid-area: alter } */
+/* Reserve in em für «nicht gemessen» (7.32em) und en «not measured» (6.37em), unabhängig von der Schrift des Geräts; die Spur wächst nur, wenn der Zustand vorkommt. */
+.dzustand .muted { display: inline-block; min-width: 8em; }
+.punkt { grid-area: punkt; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lbl); align-self: center; }
 .punkt.mint { background: var(--mint); }
 .punkt.glut { background: var(--glut); }
-.aussage { color: var(--sec); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.aussage::after { content: "▾"; color: var(--lbl); margin-left: .5rem; font-size: .75rem; }
-details.dienst[open] .aussage::after { content: "▴"; }
-.ddetail { display: grid; gap: .25rem; padding: 0 0 var(--s3) calc(1rem + var(--s2)); font-size: .8rem; color: var(--sec); font-variant-numeric: tabular-nums; }
-.dz { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: var(--s2); }
+.ddetail { display: grid; gap: .25rem; padding: 0 0 var(--s3) calc(.625rem + var(--s6)); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.dz { display: grid; grid-template-columns: max(var(--dname, 7rem), 5.5rem) minmax(0, 1fr); gap: var(--s6); }   /* Werte auf der Kante des Ports */
 .dk { color: var(--lbl); font-size: .75rem; letter-spacing: .01em; padding-top: .1rem; }
 /* Dieselbe Ordnung wie in den Fussblöcken seit f9caaee (.mz): Beschriftungsspalte gedämpft, Wertspalte in
    Textfarbe. Vorher lag beides auf --sec des Aufklappdetails, und der Wert las sich so leise wie sein Etikett.
@@ -174,10 +181,10 @@ details.dienst[open] .aussage::after { content: "▴"; }
 /* Zwei Spalten, seit die vier Blöcke Kacheln sind. Drei trugen rechnerisch, aber nur knapp: mit dem
    Innenabstand der Kachel blieben je Block 213 px für den Wert, der breiteste braucht 209 px. Vier
    Blöcke in drei Spalten lassen ausserdem einen allein auf der zweiten Zeile. Bei zwei Spalten stehen
-   414 px bereit, die Höhe bleibt bei zwei Zeilen. min(26rem, 100%) klemmt die Mindestbreite an den
-   Container: ohne das erzwang die Spur bei 430 px 416 px auf 357 px Platz, und die Seite scrollte
+   414 px bereit, die Höhe bleibt bei zwei Zeilen. min(28.5rem, 100%) klemmt die Mindestbreite an den
+   Container: ohne das erzwang die Spur bei 430 px die Mindestbreite auf 357 px Platz, und die Seite scrollte
    seitwärts. */
-.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr)); gap: var(--s4); }
+.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); }
 /* Wie die .card der Vorlage gegen die Zonenfläche (Lage und Dienste darüber stehen seit 27.09.2026 ohne Fläche):
    eigene Fläche, Rand, Radius, Innenabstand. Im Raster stehen sie damit von selbst auf einer
    Grundlinie und sind gleich hoch. */
@@ -420,11 +427,9 @@ details.prow > summary > .blockfehler { grid-column: 1 / -1; margin: 0; }
 .pname { grid-area: name; font-weight: 600; }
 /* Zahl rechtsbündig in einer eigenen Spur, das Delta beginnt in jeder Zeile auf derselben Kante. */
 .pwert { grid-area: wert; display: grid; grid-template-columns: 5ch auto; column-gap: .45rem; align-items: baseline; white-space: nowrap; }
-/* Fokus der Zeile (20.09.2026): volle Textfarbe tragen GENAU ZWEI Dinge, der Wochenwert und der Betreff des letzten
-   Commits — die Zahl, um die es geht, und woran gearbeitet wurde. Alles andere ordnet ein und bleibt gedämpft in
-   --lbl: Delta, Mikrokurve, Alter, Befund und Chevron. Der Repo-Name bleibt der Akzentlink. Vorher lag der Betreff
-   im selben Grau wie das Alter und die Zeile las sich durchgehend gleich. Kein Rot, kein Grün, auch nicht für das
-   Vorzeichen des Deltas. */
+/* Fokus der Zeile (seit 05.11.2026): jeder Wert der Gruppe «Diese Woche aktiv» steht in Textfarbe, also Repo-Name, Commits, Alter und
+   Betreff (.pliste.aktiv); gedämpft in --lbl bleiben Delta, Mikrokurve, Befund und Chevron. Die Gruppe ohne Commits bleibt gedämpft. Kein Rot,
+   kein Grün, auch nicht für das Vorzeichen des Deltas. */
 .pzahl { text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--txt); }
 .pwert .delta { font-size: .8rem; color: var(--lbl); }
 .prow .mikro { grid-area: mikro; display: block; width: 120px; height: 20px; }
@@ -432,6 +437,7 @@ details.prow > summary > .blockfehler { grid-column: 1 / -1; margin: 0; }
 /* Der laufende Tag im Akzent (seit 27.09.2026 Tage statt Wochen), auch als Grundstrich bei null; die übrigen gedämpft. */
 .mikro rect.jetzt { fill: var(--eis); }
 .palter { grid-area: alter; color: var(--lbl); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pliste.aktiv .pname, .pliste.aktiv .palter, details.dienst .palter { color: var(--txt); }
 .pbetreff { grid-area: betreff; color: var(--txt); }
 /* Befundangaben (02.10.2026): jede ist ein Sprunglink auf ihren Eintrag im Handlungsbedarf und trägt die Akzentfarbe des globalen a, ein
    frischer Zweig ohne Eintrag bleibt gedämpft. .8rem, weil es Akzent in 13.6 px auf der Seite nicht gibt: so übernimmt der Link die
@@ -439,7 +445,7 @@ details.prow > summary > .blockfehler { grid-column: 1 / -1; margin: 0; }
 .pbefund { grid-area: befund; color: var(--lbl); font-size: .8rem; max-width: 16rem; }
 /* Chevron in der Form von summary::before, am Zeilenende */
 .chev { grid-area: chev; justify-self: end; margin-right: 2px; width: 7px; height: 7px; border-right: 1.5px solid var(--lbl); border-bottom: 1.5px solid var(--lbl); transform: rotate(-45deg); transition: transform .2s var(--ease); }
-details.prow[open] .chev { transform: rotate(45deg); }
+details.prow[open] .chev, details.dienst[open] .chev { transform: rotate(45deg); }
 /* Ruhend und stillliegend: die GANZE Zeile gedämpft in den Texträngen, nicht über opacity, damit der Kontrast
    messbar bleibt. Auch der Betreff, der in einer aktiven Zeile die volle Textfarbe trägt. */
 .prow.gedaempft .pname { color: var(--sec); font-weight: 500; }
@@ -535,6 +541,7 @@ details[open] > summary::before { transform: rotate(45deg); }
    Variante b): «Commits» ragt rechtsbündig auf der Zahlenkante in die Namensspur, bei 430 px lagen 0.5 px zwischen beiden Köpfen. */
 @media (max-width: 700px) { details.prow > summary, .pgruppe.spalten { grid-template-columns: minmax(0, 1fr) 7rem 7.25rem 12px;
   grid-template-areas: "name wert alter chev"; column-gap: .3rem; } details.prow > summary, .pgruppe .pkw { font-size: .8rem; }
+  details.dienst summary { font-size: .8rem; }
   .pwert { grid-template-columns: 4ch auto; column-gap: .3rem; } .prow .mikro, .pbetreff, .pbefund, .pgruppe .pkname, .pgruppe .pkmikro, .pgruppe .pkbetreff { display: none; }
   .pdetail { grid-template-columns: minmax(0, 1fr); row-gap: var(--s5); } }
 /* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: vier Spalten, dann drei, zwei, eine. */
@@ -549,7 +556,9 @@ details[open] > summary::before { transform: rotate(45deg); }
      brauchen den Platz allein, der Balken drängte den Wert in die zweite Zeile. */
   .fbalken, .heute .uhr { display: none; }
   .hcrepo { display: none; } .hcommits { grid-template-columns: auto minmax(0, 1fr); }   /* schmal ohne Repo-Spalte */
-  body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } details.dienst summary { grid-template-columns: 1rem minmax(0, 1fr); } details.dienst summary .aussage { grid-column: 2; } .dz { grid-template-columns: 1fr; gap: 0; } .ddetail { padding-left: 0; } .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
+  body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } .dz { grid-template-columns: 1fr; gap: 0; } .ddetail { padding-left: 0; } .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
+/* shortcut: mit --s2 kürzt der längste Name auf sehr schmalen Geräten; ein Umbruch auf zwei Zeilen wäre die Alternative. */
+@media (max-width: 500px) { details.dienst summary, .pgruppe.spalten.dkopf { column-gap: var(--s2); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 .pwarn { margin: var(--s3) 0 0; font-size: .75rem; color: var(--lbl); }
 .pwarn a { color: inherit; }

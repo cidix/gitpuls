@@ -13,7 +13,7 @@
   color-scheme: light dark;
   --bg: light-dark(#F6F8FA, #0A0A0A);                                    /* Canvas */
   --card: light-dark(#FFFFFF, #141414);                                  /* Fläche */
-  --txt: light-dark(#1F2328, #F2F2F2);
+  --txt: light-dark(#000000, #FFFFFF);
   --sec: light-dark(#454C54, #B4B4B4);
   --lbl: light-dark(#59636E, #969696);
   --line: light-dark(#D1D9E0B3, rgba(255, 255, 255, .09));               /* Trennlinie */

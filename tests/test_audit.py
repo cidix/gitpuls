@@ -283,8 +283,13 @@ def s10():
 APT_SIM = """Inst libfoo1 [1.0] (1.1 Debian:13.7/stable [amd64])
 Inst tzdata [2025a] (2025b Debian:13-updates/stable-updates [all])
 Inst docker-ce [1] (2 Docker CE:trixie [amd64])
+Inst apt-utils [3.0.3] (3.0.4 Debian-Security:13/stable-security [amd64]) []
+Inst apt [3.0.3] (3.0.4 Debian-Security:13/stable-security [amd64])
+Inst libapt-pkg7.0 [3.0.3] (3.0.4 Debian-Security:13/stable-security [amd64]) [apt:amd64 ]
 """
 APT_POLICY = """Package files:
+ 500 http://security.debian.org/debian-security trixie-security/main amd64 Packages
+     release v=13,o=Debian,a=stable-security,n=trixie-security,l=Debian-Security,c=main,b=amd64
  500 https://download.docker.com/linux/debian trixie/stable amd64 Packages
      release o=Docker,a=trixie,l=Docker CE,c=stable,b=amd64
  500 http://deb.debian.org/debian trixie-updates/main amd64 Packages
@@ -314,8 +319,11 @@ def s12():
     ss = serverstand()
     ss.lauf = lambda *cmd: {"apt-get": APT_SIM, "apt-cache": APT_POLICY, "apt-config": APT_CONFIG}[cmd[0]]
     quellen, auto = ss.pakete({"ID": "debian", "VERSION_CODENAME": "trixie"})
-    assert quellen == {"Debian:stable": 1, "Debian:stable-updates": 1, "Docker CE:trixie": 1}, quellen
-    assert auto == {"Debian:stable": True, "Debian:stable-updates": False, "Docker CE:trixie": False}, auto
+    # apt, apt-utils und libapt-pkg7.0 aus stable-security, gemessen 05.11.2026: apt hängt der Klammer eine Liste an, sie zählte als «unbekannt».
+    assert quellen == {"Debian:stable": 1, "Debian:stable-updates": 1, "Docker CE:trixie": 1, "Debian-Security:stable-security": 3}, quellen
+    assert auto == {"Debian:stable": True, "Debian:stable-updates": False, "Docker CE:trixie": False, "Debian-Security:stable-security": True}, auto
+    ss.lauf = lambda *cmd: {"apt-get": "Inst kaputt [1] ohne Klammer\n", "apt-cache": APT_POLICY, "apt-config": APT_CONFIG}[cmd[0]]
+    assert ss.pakete({"ID": "debian", "VERSION_CODENAME": "trixie"}) == ({"unbekannt": 1}, {"unbekannt": False}), "was sich nicht lesen lässt, bleibt unbekannt und von Hand"
 
 
 @pruefung("s13", "S13: ein Container mit unhealthy zählt in Lagesatz und Zustandspunkt als Befund")
