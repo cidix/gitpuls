@@ -60,6 +60,11 @@ const AUSSCHNITTE = [
   { id: 'dienst', gruppe: 'Dienst zu und aufgeklappt', sel: 'details.dienst',
     zustaende: [{ szene: 'busy', zustand: 'zu', ziel: { sel: 'summary', an: 'mitte' } },
                 { szene: 'busy', zustand: 'auf', oeffnen: 'details.dienst', ziel: { sel: 'summary', an: 'mitte' } }] },
+  // die ganze Serverzone zu und mit aufgeklappter Zeile atlas-api, nur dunkel bei 1100 und 430 px (Website, Abschnitt Server);
+  // «spalte» misst den Lagesatz neben der Dienstliste als Anteil der Breite: er bleibt stehen, wenn die Zeile aufklappt
+  { id: 'server-klapp', gruppe: 'Serverzone mit Dienst zu und aufgeklappt', sel: 'section.zone.server', spalte: '.tile.lage', nur: [1100, 430],
+    zustaende: [{ szene: 'busy', zustand: 'zu', ziel: { sel: 'details.dienst > summary', an: 'mitte' } },
+                { szene: 'busy', zustand: 'auf', oeffnen: 'details.dienst', ziel: { sel: 'details.dienst > summary', an: 'mitte' } }] },
   { id: 'maschine', gruppe: 'Karte Maschine', sel: 'section.zone.server .fuss > .meta:nth-child(1)', zustaende: [{ szene: 'busy', zustand: 'karte' }] },
   { id: 'installiert', gruppe: 'Karte Installiert', sel: 'section.zone.server .fuss > .meta:nth-child(2)', zustaende: [{ szene: 'busy', zustand: 'karte' }] },
   { id: 'firewall', gruppe: 'Karte Firewall', sel: 'section.zone.server .fuss > .meta:nth-child(3)', zustaende: [{ szene: 'busy', zustand: 'karte' }] },
@@ -87,7 +92,7 @@ const AUSSCHNITTE = [
   { id: 'projektliste', gruppe: 'Projektliste', sel: 'section.card.projekte', zustaende: [{ szene: 'busy', zustand: 'liste' }] },
 ];
 // derselbe Block auch bei 430 px, einspaltig wie in der App unter 820 px (Website unter 760 px)
-AUFNAHMEN.push(AUSSCHNITTE.find((a) => a.id === 'handlung-klapp'));
+AUFNAHMEN.push(AUSSCHNITTE.find((a) => a.id === 'handlung-klapp'), AUSSCHNITTE.find((a) => a.id === 'server-klapp'));
 
 const warte = (ms) => new Promise((r) => setTimeout(r, ms));
 const freierPort = () => new Promise((r) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
@@ -151,7 +156,7 @@ try {
         await ctx.addInitScript((m) => { try { localStorage.clear(); localStorage.setItem('gitpuls-modus', m); } catch (e) {} }, modus);
         const page = await ctx.newPage();
         // bei 1100 px im Modus hell nur die ganzen Zonen (Vergleich hell und dunkel auf der Website)
-        for (const a of (breite === 1100 ? AUSSCHNITTE : AUFNAHMEN).filter((a) => breite !== 1100 || modus === 'dunkel' || a.hell)) {
+        for (const a of (breite === 1100 ? AUSSCHNITTE : AUFNAHMEN).filter((a) => (breite !== 1100 || modus === 'dunkel' || a.hell) && (!a.nur || (a.nur.includes(breite) && modus === 'dunkel')))) {
           if (a.seite) {
             if (breite !== 1440 || modus !== 'dunkel') continue;
             const z = a.zustaende[0];
@@ -202,6 +207,10 @@ try {
                 return { y: +(oben - s.top).toFixed(2), h: +(unten - oben).toFixed(2), breite: +s.width.toFixed(2),
                          ziel: { x: +((b.right - 14 - s.left) / s.width).toFixed(4), y: +((b.top + b.height / 2 - oben) / (unten - oben)).toFixed(4) } };
               }, z.ziel.sel) : undefined;
+              const spalte = a.spalte ? await el.evaluate((e, sel) => {
+                const s = e.getBoundingClientRect(), b = e.querySelector(sel).getBoundingClientRect();
+                return { y: +((b.top - s.top) / s.width).toFixed(5), h: +(b.height / s.width).toFixed(5), w: +((b.right - s.left) / s.width).toFixed(5) };
+              }, a.spalte) : undefined;
               // Zeilen (Dienstliste): Unterkante jeder Zeile und Mitte ihres Statuspunkts als Anteil des Ausschnitts
               const zeilen = a.zeilen ? await el.evaluate((e, sel) => {
                 const a = e.getBoundingClientRect();
@@ -212,7 +221,7 @@ try {
               }, a.zeilen) : undefined;
               eintraege.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei,
                               pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: a.zustaende.length > 1, ...(ziel && { ziel }), ...(zeilen && { zeilen }),
-                              ...(reihe && { reihe }) });
+                              ...(reihe && { reihe }), ...(spalte && { spalte }) });
             }
             const hoechste = Math.max(...eintraege.map((m) => m.pixel_hoehe));
             const kuerzere = eintraege.filter((m) => m.pixel_hoehe < hoechste);
