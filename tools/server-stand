@@ -314,11 +314,13 @@ def pakete(osr):
     docker-model-plugin (1.2.6-1~debian.13~trixie Docker CE:trixie [amd64])», gemessen 08.09.2026); der Schlüssel ist Label:Archiv ohne
     die Version. Gedeckt ist eine Quelle, wenn ihr Release aus apt-cache policy auf ein Origins-Pattern oder einen Allowed-Origins-Eintrag
     aus apt-config passt. Vorher galt jede Quelle mit «Debian» vorn als gedeckt; trixie-updates (n=trixie-updates) deckt das Muster
-    codename=${distro_codename} des VPS aber nicht (gemessen 10.10.2026)."""
+    codename=${distro_codename} des VPS aber nicht (gemessen 10.10.2026). Das Muster endet nicht am Zeilenende: apt hängt der Klammer bei
+    manchen Paketen eine Abhängigkeitsliste an («(3.0.3 Debian:13.7/stable [amd64]) []», gemessen 05.11.2026 an apt-utils), die Quelle galt
+    dann als «unbekannt» und damit als von Hand zu ziehen."""
     quellen, je_quelle = {}, {}
     for z in lauf("apt-get", "-s", "upgrade").splitlines():
         if z.startswith("Inst "):
-            m = re.search(r"\(\S+ (.+?) \[[^\]]*\]\)\s*$", z)
+            m = re.search(r"\(\S+ (.+?) \[[^\]]*\]\)", z)
             herkunft = [x.strip() for x in m.group(1).split(", ")] if m else ["unbekannt"]
             q = re.sub(r":[^/:]+/", ":", herkunft[0])   # «Debian:13.6/stable» -> «Debian:stable»
             quellen[q] = quellen.get(q, 0) + 1

@@ -140,17 +140,18 @@ button:active { transform: scale(.985); }
 .tile.dienste { display: grid; align-content: start; padding-top: var(--s1); padding-bottom: var(--s1); }
 details.dienst { margin: 0; border-top: 1px solid var(--line); }
 details.dienst:first-child { border-top: none; }
-details.dienst summary { display: grid; grid-template-columns: 1rem 7rem minmax(0, 1fr); gap: var(--s2); align-items: baseline; padding: .4rem 0; font-size: .85rem; line-height: 1.45; cursor: pointer; list-style: none; color: var(--txt); }
+/* Feste Spuren wie die Projektzeile (05.11.2026): Punkt, Name, Port, Zweck, Zeit, Zustand, Chevron; der Zweck nimmt den Überschuss auf. Die Namensspur ist die
+   Beschriftungsspalte des Details (.dz). Die Schrift kommt aus .pname, .palter und .pbetreff; .dport und .dzustand setzen nur die Spur. */
+details.dienst summary { display: grid; grid-template-columns: 1rem 7rem 2.25rem minmax(0, 1fr) 3.5rem 6rem 1rem;
+  grid-template-areas: "punkt name port betreff alter zustand chev"; column-gap: var(--s2); align-items: center; padding: .4rem 0; font-size: .85rem; line-height: 1.45; cursor: pointer; list-style: none; color: var(--txt); }
 details.dienst summary::-webkit-details-marker { display: none; }
 details.dienst summary::before { content: none; }
 details.dienst summary a { font-weight: 600; }
-.punkt { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lbl); align-self: center; }
+details.dienst .dport { grid-area: port; } details.dienst .dzustand { grid-area: zustand; }   /* schlägt das spätere .palter { grid-area: alter } */
+.punkt { grid-area: punkt; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--lbl); align-self: center; }
 .punkt.mint { background: var(--mint); }
 .punkt.glut { background: var(--glut); }
-.aussage { color: var(--sec); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.aussage::after { content: "▾"; color: var(--lbl); margin-left: .5rem; font-size: .75rem; }
-details.dienst[open] .aussage::after { content: "▴"; }
-.ddetail { display: grid; gap: .25rem; padding: 0 0 var(--s3) calc(1rem + var(--s2)); font-size: .8rem; color: var(--sec); font-variant-numeric: tabular-nums; }
+.ddetail { display: grid; gap: .25rem; padding: 0 0 var(--s3) calc(1rem + var(--s2)); font-size: .8rem; font-variant-numeric: tabular-nums; }
 .dz { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: var(--s2); }
 .dk { color: var(--lbl); font-size: .75rem; letter-spacing: .01em; padding-top: .1rem; }
 /* Dieselbe Ordnung wie in den Fussblöcken seit f9caaee (.mz): Beschriftungsspalte gedämpft, Wertspalte in
@@ -420,11 +421,9 @@ details.prow > summary > .blockfehler { grid-column: 1 / -1; margin: 0; }
 .pname { grid-area: name; font-weight: 600; }
 /* Zahl rechtsbündig in einer eigenen Spur, das Delta beginnt in jeder Zeile auf derselben Kante. */
 .pwert { grid-area: wert; display: grid; grid-template-columns: 5ch auto; column-gap: .45rem; align-items: baseline; white-space: nowrap; }
-/* Fokus der Zeile (20.09.2026): volle Textfarbe tragen GENAU ZWEI Dinge, der Wochenwert und der Betreff des letzten
-   Commits — die Zahl, um die es geht, und woran gearbeitet wurde. Alles andere ordnet ein und bleibt gedämpft in
-   --lbl: Delta, Mikrokurve, Alter, Befund und Chevron. Der Repo-Name bleibt der Akzentlink. Vorher lag der Betreff
-   im selben Grau wie das Alter und die Zeile las sich durchgehend gleich. Kein Rot, kein Grün, auch nicht für das
-   Vorzeichen des Deltas. */
+/* Fokus der Zeile (seit 05.11.2026): jeder Wert der Gruppe «Diese Woche aktiv» steht in Textfarbe, also Repo-Name, Commits, Alter und
+   Betreff (.pliste.aktiv); gedämpft in --lbl bleiben Delta, Mikrokurve, Befund und Chevron. Die Gruppe ohne Commits bleibt gedämpft. Kein Rot,
+   kein Grün, auch nicht für das Vorzeichen des Deltas. */
 .pzahl { text-align: right; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--txt); }
 .pwert .delta { font-size: .8rem; color: var(--lbl); }
 .prow .mikro { grid-area: mikro; display: block; width: 120px; height: 20px; }
@@ -432,6 +431,7 @@ details.prow > summary > .blockfehler { grid-column: 1 / -1; margin: 0; }
 /* Der laufende Tag im Akzent (seit 27.09.2026 Tage statt Wochen), auch als Grundstrich bei null; die übrigen gedämpft. */
 .mikro rect.jetzt { fill: var(--eis); }
 .palter { grid-area: alter; color: var(--lbl); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pliste.aktiv .pname, .pliste.aktiv .palter, details.dienst .palter { color: var(--txt); }
 .pbetreff { grid-area: betreff; color: var(--txt); }
 /* Befundangaben (02.10.2026): jede ist ein Sprunglink auf ihren Eintrag im Handlungsbedarf und trägt die Akzentfarbe des globalen a, ein
    frischer Zweig ohne Eintrag bleibt gedämpft. .8rem, weil es Akzent in 13.6 px auf der Seite nicht gibt: so übernimmt der Link die
@@ -439,7 +439,7 @@ details.prow > summary > .blockfehler { grid-column: 1 / -1; margin: 0; }
 .pbefund { grid-area: befund; color: var(--lbl); font-size: .8rem; max-width: 16rem; }
 /* Chevron in der Form von summary::before, am Zeilenende */
 .chev { grid-area: chev; justify-self: end; margin-right: 2px; width: 7px; height: 7px; border-right: 1.5px solid var(--lbl); border-bottom: 1.5px solid var(--lbl); transform: rotate(-45deg); transition: transform .2s var(--ease); }
-details.prow[open] .chev { transform: rotate(45deg); }
+details.prow[open] .chev, details.dienst[open] .chev { transform: rotate(45deg); }
 /* Ruhend und stillliegend: die GANZE Zeile gedämpft in den Texträngen, nicht über opacity, damit der Kontrast
    messbar bleibt. Auch der Betreff, der in einer aktiven Zeile die volle Textfarbe trägt. */
 .prow.gedaempft .pname { color: var(--sec); font-weight: 500; }
@@ -535,6 +535,7 @@ details[open] > summary::before { transform: rotate(45deg); }
    Variante b): «Commits» ragt rechtsbündig auf der Zahlenkante in die Namensspur, bei 430 px lagen 0.5 px zwischen beiden Köpfen. */
 @media (max-width: 700px) { details.prow > summary, .pgruppe.spalten { grid-template-columns: minmax(0, 1fr) 7rem 7.25rem 12px;
   grid-template-areas: "name wert alter chev"; column-gap: .3rem; } details.prow > summary, .pgruppe .pkw { font-size: .8rem; }
+  details.dienst summary { font-size: .8rem; grid-template-columns: 1rem minmax(0, 1fr) 2.25rem 3.5rem 5.5rem 12px; grid-template-areas: "punkt name port alter zustand chev"; column-gap: .3rem; }
   .pwert { grid-template-columns: 4ch auto; column-gap: .3rem; } .prow .mikro, .pbetreff, .pbefund, .pgruppe .pkname, .pgruppe .pkmikro, .pgruppe .pkbetreff { display: none; }
   .pdetail { grid-template-columns: minmax(0, 1fr); row-gap: var(--s5); } }
 /* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: vier Spalten, dann drei, zwei, eine. */
@@ -549,7 +550,7 @@ details[open] > summary::before { transform: rotate(45deg); }
      brauchen den Platz allein, der Balken drängte den Wert in die zweite Zeile. */
   .fbalken, .heute .uhr { display: none; }
   .hcrepo { display: none; } .hcommits { grid-template-columns: auto minmax(0, 1fr); }   /* schmal ohne Repo-Spalte */
-  body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } details.dienst summary { grid-template-columns: 1rem minmax(0, 1fr); } details.dienst summary .aussage { grid-column: 2; } .dz { grid-template-columns: 1fr; gap: 0; } .ddetail { padding-left: 0; } .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
+  body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } .dz { grid-template-columns: 1fr; gap: 0; } .ddetail { padding-left: 0; } .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 .pwarn { margin: var(--s3) 0 0; font-size: .75rem; color: var(--lbl); }
 .pwarn a { color: inherit; }

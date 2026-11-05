@@ -1498,6 +1498,17 @@ def gedeckt(zustand, quelle):
     return True if aktiv and deckt else None
 
 
+# Kanäle der Serverzone: Quellenschlüssel von tools/server-stand (Label:Archiv), bei Fremdquellen das Label allein, weil das Archiv die Version des Hosts nennt.
+KANAELE = {"Debian:stable": "kanal.debian", "Debian:stable-updates": "kanal.debian_updates", "Debian-Security:stable-security": "kanal.debian_sicherheit",
+           "Docker CE": "kanal.docker", "Tailscale": "kanal.tailscale", "unbekannt": "sv.unbekannt"}
+
+
+def kanal(quelle):
+    """Der Name eines Kanals aus der Tabelle; eine Quelle, die sie nicht kennt, bleibt unter ihrem Schlüssel sichtbar."""
+    schluessel = KANAELE.get(quelle) or KANAELE.get(quelle.split(":")[0])
+    return t(schluessel) if schluessel else quelle
+
+
 def von_hand(zustand):
     """Upgradebare Pakete je Quelle, die der Automatismus nicht nachweislich zieht; ein Handbetrieb ohne Zähler wird nicht geprüft."""
     return {q: n for q, n in (zustand.get("pakete_quellen") or {}).items() if n and not gedeckt(zustand, q)}
@@ -1557,7 +1568,7 @@ def server_lage(s):
         rest.append(t("sl.sauber"))   # nur über gemessene Läufe
     hand = von_hand(s["zustand"])
     if hand:   # der Automatismus zieht sie nicht, also muss die Zahl sichtbar sein
-        rest.append(", ".join(t("sl.hand", q, n) for q, n in sorted(hand.items())) + t("sl.hand_ende"))
+        rest.append(", ".join(t("sl.hand", kanal(q), n) for q, n in sorted(hand.items())) + t("sl.hand_ende"))
     if s["zustand"].get("neustart_noetig") is False:   # nur gemessen; ohne Mechanismus für den Marker steht nichts (Audit S11)
         rest.append(t("sl.kein_neustart"))
     # Kein Grossbuchstabe am Anfang erzwungen: "gitpuls" ist ein Name.
@@ -1630,7 +1641,7 @@ def server_lage_block(s, jetzt):
     elif last is not None and m.get("vcores") and last > m["vcores"]:
         zahl = (fmt.dezimal(last, 2), t("sv.last_hoch", m["vcores"]), True)
     elif hand:
-        zahl = (str(sum(hand.values())), t("sv.hand", sum(hand.values()), ", ".join(sorted(hand))), False)
+        zahl = (str(sum(hand.values())), t("sv.hand", sum(hand.values()), ", ".join(sorted(map(kanal, hand)))), False)
     elif boot:
         zahl = (zeitspanne((jetzt - boot).total_seconds()), t("sv.laeuft_seit_boot", fmt.zeitpunkt(boot)), False)
     else:
@@ -1639,10 +1650,28 @@ def server_lage_block(s, jetzt):
     return f'<p class="f">{geschuetzt(satz)}</p>{zahl_html}'
 
 
+def link_port(link):
+    """Der Port aus dem Link der Dienstzeile, ohne Angabe der Standardport des Schemas. Ein Port ist eine Kennung wie in fuss_installiert,
+    deshalb ohne Gruppierung; ein ungültiger Link bricht die Zeile nicht."""
+    try:
+        u = urlparse(link or "")
+        return u.port or {"https": 443, "http": 80}.get(u.scheme, "")
+    except ValueError:
+        return ""
+
+
+def lauf_zeit(iso_s, heute):
+    """Der Zeitpunkt in der Dienstzeile: heute die Uhrzeit, sonst das Datum; ohne Lauf leer."""
+    if not iso_s:
+        return ""
+    d = datetime.fromisoformat(iso_s.replace("Z", "+00:00")).astimezone(TZ)
+    return fmt.uhrzeit(d) if d.date() == heute else fmt.datum(d)
+
+
 def server_dienste_block(s, jetzt):
-    """Vier Dienste als Zeilen (Zustandspunkt, Name als Link, kurze Aussage zum letzten Lauf) mit aufklappbarem Detail.
-    Ein konfigurierter Container oder Timer, den der Serverstand nicht findet, steht mit dem gesuchten Namen und
-    «nicht gefunden, tools/dienste.json prüfen»: die Tabelle ist dann veraltet, nicht der Dienst kaputt."""
+    """Die Dienste als Zeilen auf festen Spuren (Punkt, Name als Link, Port, Zweck, letzter Lauf mit Zustand als einem Wort, Chevron) mit
+    aufklappbarem Detail. Ein konfigurierter Container oder Timer, den der Serverstand nicht findet, steht im Detail mit dem gesuchten
+    Namen und «nicht gefunden, tools/dienste.json prüfen»: die Tabelle ist dann veraltet, nicht der Dienst kaputt."""
     heute = jetzt.astimezone(TZ).date()
     boot = boot_von(s)
     neustart_txt = uhr(iso_utc(boot.astimezone(timezone.utc)), heute) if boot else t("dn.nicht_gemessen")
@@ -1657,33 +1686,24 @@ def server_dienste_block(s, jetzt):
         gestoppt = [t for t in d["timer"] if t.get("status") != "fehlt" and not timer_aktiv(t)]
         laufend = [t for t in d["timer"] if t.get("status") in ("activating", "active") and t.get("gestartet_utc")]
         fertig = sorted((t for t in d["timer"] if t.get("letzter_utc") and t not in laufend), key=lambda t: t["letzter_utc"])
-        # Zustandspunkt und die eine kurze Aussage zum letzten Lauf; die Langform steht im Detail
-        if cont_ab:
-            c0 = cont_ab[0]
-            was = PRUEFEN if c0["status"] == "fehlt" else html.escape(c0["status"] if c0["status"] != "running" else c0["gesund"])
-            punkt, aussage = "glut", f'<span class="glut">{t("dn.container", html.escape(c0["name"]), was)}</span>'
-        elif gescheitert:
-            tm_ = gescheitert[0]
-            punkt, aussage = "glut", f'<span class="glut">{t("dn.gescheitert", html.escape(tm_["unit"]), uhr(tm_["letzter_utc"], heute) if tm_.get("letzter_utc") else "?", html.escape(tm_.get("ergebnis") or "?"), tm_.get("exit"))}</span>'
-        elif fehlend:
-            punkt, aussage = "glut", f'<span class="glut">{t("dn.timer", html.escape(fehlend[0]["unit"]), PRUEFEN)}</span>'
-        elif gestoppt:
-            punkt, aussage = "glut", f'<span class="glut">{t("dn.timer", html.escape(gestoppt[0]["unit"]), t("dn.nicht_aktiv"))}</span>'
+        # Zustandspunkt, Zeitpunkt des letzten Laufs und der Zustand als ein Wort; Unit, Container und Grund stehen im Detail.
+        if cont_ab or gescheitert or fehlend or gestoppt:
+            punkt, zustand = "glut", f'<span class="glut">{t("dn.w_fehler")}</span>'
+            zeit = gescheitert[0].get("letzter_utc") if gescheitert else (fertig[-1]["letzter_utc"] if fertig else None)
         elif nicht:
-            punkt, aussage = "grau", ng(nicht[0])
+            punkt, zustand, zeit = "grau", ng(nicht[0]), None
         elif laufend:
-            punkt, aussage = "mint", t("dn.laeuft", html.escape(laufend[0]["unit"]), uhr(laufend[0]["gestartet_utc"], heute))
+            punkt, zustand, zeit = "mint", t("dn.w_laeuft"), laufend[0]["gestartet_utc"]
         elif fertig:
-            tm_ = fertig[-1]
-            punkt, aussage = "mint", t("dn.sauber", html.escape(tm_["unit"]), uhr(tm_["letzter_utc"], heute))
+            punkt, zustand, zeit = "mint", t("dn.w_sauber"), fertig[-1]["letzter_utc"]
         elif not d["timer"] and d["container"]:
             # Ein Dienst ohne Timer (25.09.2026) ist gesund, wenn seine Container laufen: kein Lauf, auf den er warten müsste.
-            punkt, aussage = "mint", t("dn.ohne_timer", uhr(d["container"][0]["seit_utc"], heute))
+            punkt, zustand, zeit = "mint", t("dn.w_ohne_timer"), d["container"][0]["seit_utc"]
         else:
-            punkt, aussage = "grau", t("dn.kein_lauf", neustart_txt)
-        # Detail: alles, was von der ersten Ebene hierher gewandert ist. Zweck und Zeilen sind Angaben des Betreibers aus
+            punkt, zustand, zeit = "grau", t("dn.w_kein_lauf"), None
+        # Detail: alles, was von der ersten Ebene hierher gewandert ist. Zeilen sind Angaben des Betreibers aus
         # tools/dienste.json, keine Texte der Oberfläche: sie bleiben in ihrer Sprache (translate="no").
-        det = [f'<div class="dz"><span class="dk">{t("dn.zweck")}</span><span translate="no">{html.escape(d.get("zweck") or "")}</span></div>']
+        det = []
         for x in d.get("zeilen", []):
             det.append(f'<div class="dz"><span class="dk">{t("dn.dazu")}</span><span translate="no">{html.escape(x)}</span></div>')
         for c in d["container"]:
@@ -1743,13 +1763,16 @@ def server_dienste_block(s, jetzt):
             elif alter > DEPLOY_ALT_S:
                 dep = f'<span class="glut">{t("dn.veraltet", zeitpunkt(dp["gemessen"]))}: {dep}</span>'
         det.append(f'<div class="dz"><span class="dk">{t("dn.stand_k")}</span><span>{dep}</span></div>')
-        return (f'<details class="dienst"><summary><i class="punkt {punkt}" aria-hidden="true"></i><a href="{html.escape(d.get("link") or "")}" translate="no">{html.escape(d["name"])}</a>'
-                      f'<span class="aussage">{aussage}</span></summary><div class="ddetail">{"".join(det)}</div></details>')
+        zweck = html.escape(d.get("zweck") or "")
+        return (f'<details class="dienst"><summary><i class="punkt {punkt}" aria-hidden="true"></i><a class="pname" href="{html.escape(d.get("link") or "")}" translate="no">{html.escape(d["name"])}</a>'
+                f'<span class="palter dport">{link_port(d.get("link"))}</span><span class="pbetreff" title="{zweck}" translate="no">{zweck}</span>'
+                f'<span class="palter">{lauf_zeit(zeit, heute)}</span><span class="palter dzustand">{zustand}</span>'
+                f'<span class="chev" aria-hidden="true"></span></summary><div class="ddetail">{"".join(det)}</div></details>')
 
     def ungueltig(d, grund):
         """Ein Dienst, den die Seite nicht auswerten kann: grauer Punkt, «nicht gemessen» mit Grund, die übrigen Zeilen bleiben (Befund 8)."""
-        return (f'<details class="dienst"><summary><i class="punkt grau" aria-hidden="true"></i><span translate="no">{html.escape(dienst_name(d))}</span>'
-                f'<span class="aussage">{ng({"grund": grund})}</span></summary><div class="ddetail"><div class="dz"><span class="dk">{t("dn.stand_k")}</span>'
+        return (f'<details class="dienst"><summary><i class="punkt grau" aria-hidden="true"></i><span class="pname" translate="no">{html.escape(dienst_name(d))}</span>'
+                f'<span class="palter dzustand">{ng({"grund": grund})}</span><span class="chev" aria-hidden="true"></span></summary><div class="ddetail"><div class="dz"><span class="dk">{t("dn.stand_k")}</span>'
                 f'<span>{t("dn.nicht_gemessen")} ({html.escape(grund)})</span></div></div></details>')
 
     zeilen = []
@@ -1856,7 +1879,7 @@ def fuss_updates(s):
     else:
         upd = mz(t("mz.pakete"), t("mz.upgradebar", z["pakete_upgradebar"]) if z["pakete_upgradebar"] else t("mz.keine_offen"))
     for q, n in sorted((z.get("pakete_quellen") or {}).items()):
-        upd += mz(html.escape(q), t("mz.quelle", n, gedeckt(z, q)))
+        upd += mz(html.escape(kanal(q)), t("mz.quelle", n, gedeckt(z, q)))
     neustart = z.get("neustart_noetig")
     return upd + (mz(t("mz.neustart"), f'<span class="glut">{t("mz.noetig")}</span>' if neustart else t("mz.nicht_noetig") if neustart is False
                      else nicht_gemessen(s, "neustart"))
@@ -2584,7 +2607,7 @@ def projekte_block(c, heute, jetzt, ruhend=False):
             kopf = (f'<details class="gruppe ruhend"{" open" if ruhend else ""}><summary class="pgruppe{getrennt}">'
                     f'{t("projekte.ohne")}<span class="panz kwert">{fmt.zahl(len(ks))}</span><span class="chev" aria-hidden="true"></span></summary>'
                     + spalten(""))
-        teile.append(kopf + f'<div class="pliste">{"".join(zeile(k) for k in ks)}</div>' + ("" if aktiv_ else "</details>"))
+        teile.append(kopf + f'<div class="pliste{" aktiv" if aktiv_ else ""}">{"".join(zeile(k) for k in ks)}</div>' + ("" if aktiv_ else "</details>"))
         erste = False
     return f"""<h3 class="titel">{t("projekte.titel")}</h3>
   {(meta + "".join(teile)) if karten else f'<p class="sub">{t("projekte.leer")}</p>'}"""

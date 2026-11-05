@@ -56,7 +56,7 @@ beispiel["dienste"][1]["timer"][0].update(ergebnis="exit-code", exit=1)
 satz, ab = web.server_lage(beispiel)
 assert satz.startswith("Preisbeobachter: Lauf beobachter-lauf gescheitert, exit-code, Exit 1. Trainingslog: Container trainingslog-trainingslog-1 exited. Sonst laufen drei von vier Diensten"), satz
 h = web.server_html(beispiel, jetzt)
-assert 'class="glut">Container trainingslog-trainingslog-1 exited' in h and "gescheitert, exit-code, Exit 1" in h and "gescheitert, exit-code 1</span></span></summary>" in h
+assert 'class="glut">trainingslog-trainingslog-1 exited' in h and "gescheitert, exit-code, Exit 1" in h and h.count('<span class="palter dzustand"><span class="glut">Fehler</span></span>') == 2
 
 # 2c: nach einem Host-Neustart (08.09.2026 05:04) kennt systemd keine Zeiten mehr: kein "Exit 0", kein "läuft seit";
 # eine gerade laufende Unit ohne nächsten Termin zeigt "nach dem Lauf" statt einer leeren Zelle
@@ -702,9 +702,9 @@ kaputt["dienste"][3]["container"] = [{"name": "wochenlog-wochenlog-1", "status":
 kaputt["dienste"][1]["container"][0]["bild"] = None
 h = web.server_html(kaputt, jetzt)
 assert 'class="glut">wochenlog-wochenlog-1 nicht gefunden, tools/dienste.json prüfen</span>' in h, h[h.index("wochenlog-wochenlog-1"):][:200]
-assert 'Container wochenlog-wochenlog-1 nicht gefunden, tools/dienste.json prüfen</span></span></summary>' in h, "Dienstzeile nennt den gesuchten Namen"
+assert '<span class="palter dzustand"><span class="glut">Fehler</span></span>' in h, "die Zeile sagt Fehler, das Detail nennt den gesuchten Namen"
 assert 'preisbeobachter-preise-1 läuft seit' in h and h.count('Bild <span class="glut">unbekannt</span>') == 1, "bild null beim laufenden Container"
-# Timer fehlt: der Container läuft, der konfigurierte Timer ist nicht zu finden; die Dienstzeile nennt den Timernamen
+# Timer fehlt: der Container läuft, der konfigurierte Timer ist nicht zu finden; das Detail nennt den Timernamen
 # und den Hinweis in Warnfarbe, das Detail auch, und der Zustandspunkt steht auf Warnfarbe.
 ohne_timer = json.loads(json.dumps(beispiel))
 ohne_timer["erhoben_utc"] = web.iso_utc(jetzt)
@@ -713,11 +713,11 @@ ohne_timer["dienste"][1]["timer"] = [{"unit": "beobachter-lauf", "status": "fehl
 h = web.server_html(ohne_timer, jetzt)
 zeile = h[h.index(">Preisbeobachter</a>"):]
 zeile = zeile[:zeile.index("</details>")]
-assert '<span class="glut">Timer beobachter-lauf nicht gefunden, tools/dienste.json prüfen</span></span></summary>' in zeile, zeile[:300]
+assert '<span class="palter dzustand"><span class="glut">Fehler</span></span>' in zeile[:zeile.index("</summary>")], zeile[:300]
 assert '<span class="dk">Lauf</span><span class="glut">Timer beobachter-lauf nicht gefunden, tools/dienste.json prüfen</span>' in zeile, "Detail nennt den Timer"
 assert 'punkt glut' in h[h.rindex("<details", 0, h.index(">Preisbeobachter</a>")):h.index(">Preisbeobachter</a>")], "Zustandspunkt in Warnfarbe"
 assert "Block konnte nicht gezeichnet werden" not in h
-# Dienst ohne Timer (namensprobe, 25.09.2026): läuft der Container, grüner Punkt und «läuft seit», kein «kein Lauf»; steht er, Warnfarbe.
+# Dienst ohne Timer (namensprobe, 25.09.2026): läuft der Container, grüner Punkt und «ohne Timer», kein «kein Lauf»; steht er, Warnfarbe.
 kein_timer = json.loads(json.dumps(beispiel))
 kein_timer["erhoben_utc"] = web.iso_utc(jetzt)
 kein_timer["dienste"].append({"name": "namensprobe", "zweck": "Namens-Prüfung", "link": "https://host-01.example.ts.net:8447/", "repo": "fernwerk-studio/namensprobe",
@@ -725,7 +725,7 @@ kein_timer["dienste"].append({"name": "namensprobe", "zweck": "Namens-Prüfung",
 h = web.server_html(kein_timer, jetzt)
 kopf_n = h[h.rindex("<details", 0, h.index(">namensprobe</a>")):]
 kopf_n = kopf_n[:kopf_n.index("</summary>")]
-assert "punkt mint" in kopf_n and "läuft seit" in kopf_n and "ohne Timer" in kopf_n and "kein Lauf" not in kopf_n, kopf_n
+assert "punkt mint" in kopf_n and "läuft seit" not in kopf_n and "ohne Timer" in kopf_n and "kein Lauf" not in kopf_n, kopf_n
 assert 'href="https://host-01.example.ts.net:8447/"' in kopf_n and h.count('class="dienst"') == 5, kopf_n
 kein_timer["dienste"][-1]["container"][0]["status"] = "exited"
 h = web.server_html(kein_timer, jetzt)
@@ -783,7 +783,7 @@ for fn, name, bleibt in (("projekt_zeile", "Projektzeile", ()), ("mikrokurve", "
     assert all(marker in s for marker in MARKER.values()), name
     assert s.count("<details class=\"prow") == (0 if name == "Projektzeile" else n_roh), name
     for b in bleibt:
-        assert s.count(b) == n_roh, (name, b)
+        assert s[s.index(MARKER["Projekte"]):].count(b) == n_roh, (name, b)   # .palter trägt seit 05.11.2026 auch die Dienstzeile
     assert fehl == [f"{name} neu", f"{name} ruhig"], (name, fehl)
 assert FEHLER not in seite()
 # Handler antwortet 200, auch wenn ein Block kaputt ist
@@ -898,16 +898,16 @@ assert "von Hand zu ziehen" not in web.server_lage(nur_debian)[0]
 nur_docker = mit({"Docker CE": 2})
 assert web.von_hand(nur_docker["zustand"]) == {"Docker CE": 2}
 h = web.server_html(nur_docker, jetzt)
-assert "2 offen, von Hand" in h and 'class="blau">2</b><span>Updates von Hand zu ziehen: Docker CE' in h, h[h.index("class=\"n\""):][:300]
-assert "Docker CE: zwei Updates offen, von Hand zu ziehen" in web.server_lage(nur_docker)[0]
+assert "2 offen, von Hand" in h and 'class="blau">2</b><span>Updates von Hand zu ziehen: Docker' in h and "Docker CE" not in h, h[h.index("class=\"n\""):][:300]
+assert "Docker: zwei Updates offen, von Hand zu ziehen" in web.server_lage(nur_docker)[0]
 assert not web.firewall_befunde(nur_docker["firewall"]) and "glut" not in h, "offene Updates sind eine Aufgabe, keine Abweichung"
 
 beide = mit({"Debian": 4, "Docker CE": 1})
 assert web.von_hand(beide["zustand"]) == {"Docker CE": 1}
 h = web.server_html(beide, jetzt)
 assert "5 upgradebar" in h and "4 offen, deckt der Automatismus" in h and "1 offen, von Hand" in h
-assert 'class="blau">1</b><span>Update von Hand zu ziehen: Docker CE' in h
-assert "Docker CE: ein Update offen, von Hand zu ziehen" in web.server_lage(beide)[0]
+assert 'class="blau">1</b><span>Update von Hand zu ziehen: Docker' in h
+assert "Docker: ein Update offen, von Hand zu ziehen" in web.server_lage(beide)[0]
 
 # 6: Achsen und Raster. Ohne Skala ist eine Kurve keine Aussage, und genau an den dünnen Fällen
 # bricht eine Skala: leere Reihe, ein einziger Punkt, Höchstwert null.
@@ -1929,25 +1929,32 @@ assert web.zonendeckung(_helsinki, _ZI2("Europe/Kyiv"), date(2026, 1, 1), date(2
 os.environ["TZ"] = _tz_vorher
 _zeit.tzset()
 
-# Der schärfere Fall, den nur eine Prüfung BEIDER Seiten und die Sekunde VOR dem Übergang fängt:
-# America/Havana und America/New_York haben dieselben Offsets (UTC-5 und UTC-4) und stellen am selben TAG um,
-# aber zu verschiedenen Stunden (Havana 00:00 lokal, New York 02:00). An jedem Tagesanfang stimmen beide
-# überein; nur in der Stunde dazwischen laufen sie auseinander. Gemessen 2026-03-08T05:30:00Z: Havana 01:30,
-# New York 00:30 — derselbe Zeitpunkt, verschiedene Stunde.
-os.environ["TZ"] = "America/Havana"
+# Der schärfere Fall, den nur eine Prüfung BEIDER Seiten und die Sekunde VOR dem Übergang fängt: zwei Zonen mit denselben Offsets (UTC-5 und
+# UTC-4) und Umstellung am selben TAG, aber zu verschiedenen Stunden (Frühling 00:00 gegen 02:00 lokal). An jedem Tagesanfang stimmen beide
+# überein; nur in den Stunden dazwischen laufen sie auseinander. Das Paar ist seit 05.11.2026 künstlich: SQLite liest eine POSIX-Regel aus TZ,
+# Python eine ZoneInfo aus Bytes, beide ohne Zonendaten des Systems. Vorher America/Havana gegen America/New_York; tzdata 2026f nimmt Havana die
+# Umstellung im Herbst 2026, die Prüfung wurde rot, ohne dass der Code sich geändert hatte.
+import io as _io, struct as _struct  # noqa: E402
+def _kunst_zone(regel, key):
+    """Eine ZoneInfo nur aus der POSIX-Regel im Fuss einer TZif-Datei, ohne Übergangstabelle."""
+    teil = b"TZif2" + bytes(15) + _struct.pack(">6l", 0, 0, 0, 0, 1, 4) + _struct.pack(">lBB", 0, 0, 0) + b"UTC\0"
+    return _ZI2.from_file(_io.BytesIO(teil + teil + b"\n" + regel.encode() + b"\n"), key=key)
+_REGEL_FRUEH, _REGEL_SPAET = "KUA5KUB,M3.2.0/0,M11.1.0/1", "KNA5KNB,M3.2.0/2,M11.1.0/2"
+_kunst_spaet = _kunst_zone(_REGEL_SPAET, "Kunst/Spaet")
+os.environ["TZ"] = _REGEL_FRUEH
 _zeit.tzset()
-_havana = _sq.connect(":memory:")
-assert _havana.execute("SELECT datetime('2026-03-08T05:30:00Z', 'localtime')").fetchone()[0] == "2026-03-08 01:30:00"
-assert datetime.fromisoformat("2026-03-08T05:30:00+00:00").astimezone(_ZI2("America/New_York")).strftime(
-    "%H:%M") == "00:30", "dieselbe Sekunde, andere Stunde"
-for _iso in ("2026-01-15T12:00:00Z", "2026-07-15T12:00:00Z"):
-    assert _havana.execute("SELECT datetime(?, 'localtime')", (_iso,)).fetchone()[0] == \
-        datetime.fromisoformat(_iso.replace("Z", "+00:00")).astimezone(_ZI2("America/New_York")).strftime("%Y-%m-%d %H:%M:%S"), \
-        (_iso, "Januar und Juli decken sich auch hier")
-meldung2 = web.zonendeckung(_havana, _ZI2("America/New_York"), date(2026, 1, 1), date(2026, 12, 31))
-assert meldung2 and "America/New_York" in meldung2 and "Umstellungstermin" in meldung2, meldung2
+_kunst = _sq.connect(":memory:")
+assert _kunst.execute("SELECT datetime('2026-03-08T05:30:00Z', 'localtime')").fetchone()[0] == "2026-03-08 01:30:00"
+assert datetime.fromisoformat("2026-03-08T05:30:00+00:00").astimezone(_kunst_spaet).strftime("%H:%M") == "00:30", "dieselbe Sekunde, andere Stunde"
+for _iso in ("2026-01-15T12:00:00Z", "2026-03-08T00:00:00Z", "2026-03-09T00:00:00Z", "2026-07-15T12:00:00Z", "2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z"):
+    assert _kunst.execute("SELECT datetime(?, 'localtime')", (_iso,)).fetchone()[0] == \
+        datetime.fromisoformat(_iso.replace("Z", "+00:00")).astimezone(_kunst_spaet).strftime("%Y-%m-%d %H:%M:%S"), \
+        (_iso, "Januar, Juli und die Tagesanfänge rund um die Umstellung decken sich auch hier")
+meldung2 = web.zonendeckung(_kunst, _kunst_spaet, date(2026, 1, 1), date(2026, 12, 31))
+assert meldung2 and "Kunst/Spaet" in meldung2 and "Umstellungstermin" in meldung2, meldung2
 assert "2026-03-08" in meldung2 or "2026-11-01" in meldung2, ("der Übergangstag steht im Text", meldung2)
 assert "Python" in meldung2 and "SQLite" in meldung2, meldung2
+assert web.zonendeckung(_kunst, _kunst_zone(_REGEL_FRUEH, "Kunst/Gleich"), date(2026, 1, 1), date(2026, 12, 31)) is None, "dieselbe Regel deckt"
 # Und die alte Prüfung an zwei Stichproben hätte beide Paare durchgelassen — der Grund, warum sie ersetzt ist.
 os.environ["TZ"] = "Europe/Helsinki"
 _zeit.tzset()
@@ -1966,12 +1973,12 @@ quelle_start = (web.WEB.parent / "web.py").read_text()
 assert "abweichung = startpruefung()" in quelle_start, "der Start ruft sie"
 assert 'if abweichung:\n        sys.exit("gitpuls: " + abweichung)' in quelle_start, "und bricht bei einer Abweichung ab"
 # Die Bisektion findet den Übergang BEIDER Seiten sekundengenau; darauf ruhen die Prüfpunkte davor und danach.
-# Havana stellt am 08.03.2026 um 00:00 lokal um (05:00Z), New York um 02:00 lokal (07:00Z).
+# Das künstliche Paar stellt am 08.03.2026 um 00:00 lokal um (05:00Z) und um 02:00 lokal (07:00Z).
 _von, _bis = datetime(2026, 3, 7, tzinfo=timezone.utc), datetime(2026, 3, 9, tzinfo=timezone.utc)
-os.environ["TZ"] = "America/Havana"
+os.environ["TZ"] = _REGEL_FRUEH
 _zeit.tzset()
-_g_sql = web._wechsel(lambda d: web.offset_sql(_havana, d), _von, _bis)
-_g_py = web._wechsel(lambda d: int(d.astimezone(_ZI2("America/New_York")).utcoffset().total_seconds()), _von, _bis)
+_g_sql = web._wechsel(lambda d: web.offset_sql(_kunst, d), _von, _bis)
+_g_py = web._wechsel(lambda d: int(d.astimezone(_kunst_spaet).utcoffset().total_seconds()), _von, _bis)
 assert _g_sql == datetime(2026, 3, 8, 5, tzinfo=timezone.utc), _g_sql
 assert _g_py == datetime(2026, 3, 8, 7, tzinfo=timezone.utc), _g_py
 assert _g_sql != _g_py, "genau deshalb werden die Übergänge BEIDER Seiten gesucht, nicht nur die einer"
@@ -2864,8 +2871,8 @@ st["dienste"][2]["timer"][0]["timer_aktiv"] = "inactive"
 satz_t, ab_t = web.server_lage(st)
 assert f"gitpuls: Timer {unit_} nicht aktiv" in ab_t and satz_t.startswith(f"gitpuls: Timer {unit_} nicht aktiv."), (satz_t, ab_t)
 zeile_t = web.server_dienste_block(st, jl).split('<details class="dienst">')[3]
-assert '<i class="punkt glut"' in zeile_t and f'<span class="aussage"><span class="glut">Timer {unit_} nicht aktiv</span></span>' in zeile_t, zeile_t[:600]
-assert zeile_t.count(f'<span class="glut">Timer {unit_} nicht aktiv</span>') == 2, "auch im Detail anstelle des nächsten Termins"
+assert '<i class="punkt glut"' in zeile_t and '<span class="palter dzustand"><span class="glut">Fehler</span></span>' in zeile_t, zeile_t[:600]
+assert zeile_t.count(f'<span class="glut">Timer {unit_} nicht aktiv</span>') == 1, "nur noch im Detail anstelle des nächsten Termins"
 with sprache.gilt("en"):
     assert f"gitpuls: timer {unit_} not active" in web.server_lage(st)[1]
 
@@ -3008,3 +3015,64 @@ assert 'ARG GITPULS_VERSION=""' in dockerfile_ and "ENV GITPULS_VERSION=$GITPULS
     and 'org.opencontainers.image.version="$GITPULS_VERSION"' in dockerfile_, "Dockerfile: Build-Argument, Umgebung und Label"
 assert "build-args: GITPULS_VERSION=${{ steps.meta.outputs.version }}" in (web.WEB.parent.parent / ".github" / "workflows" / "release.yml").read_text()
 print("ok: Version aus dem Bild vor GITPULS_TAG, ohne Build-Argument der Commit")
+
+# Dienstzeile auf festen Spuren (05.11.2026): Punkt, Name, Port, Zweck, Zeit, Zustand als ein Wort, Chevron; die Sätze der Zeile sind weg.
+sp_ = json.loads((Path(__file__).parent / "server.beispiel.json").read_text())
+sp_["erhoben_utc"] = web.iso_utc(jetzt)
+for d_ in sp_["dienste"]:
+    d_["zweck"], d_["link"] = f'Zweck von {d_["name"]}', "https://host-01.example.ts.net:8447/"
+sp_["dienste"][0]["link"] = "https://host-01.example.ts.net/"
+heute_ = jetzt.astimezone(web.TZ).date()
+SPUREN = re.compile(r'<summary><i class="punkt \w+" aria-hidden="true"></i><a class="pname" href="[^"]*" translate="no">[^<]*</a>'
+                    r'<span class="palter dport">\d+</span><span class="pbetreff" title="Zweck von [^"]*" translate="no">Zweck von [^<]*</span>'
+                    r'<span class="palter">[^<]*</span><span class="palter dzustand">.*?</span><span class="chev" aria-hidden="true"></span></summary>')
+block_ = web.server_dienste_block(sp_, jetzt)
+assert len(SPUREN.findall(block_)) == len(sp_["dienste"]) == block_.count('class="dienst"'), block_[:600]
+assert 'class="palter dport">443<' in block_ and 'class="palter dport">8447<' in block_, "Port aus dem Link, ohne Angabe der Standardport"
+assert (web.link_port("https://a.example:99999/"), web.link_port(None), web.link_port("http://a.example/")) == ("", "", 80)
+assert "aussage" not in block_ and "aussage" not in (web.WEB / "style.css").read_text()
+# Unit, Timer, Container und Deploy-Stand nur im Aufklappdetail, der Zweck dort nicht mehr.
+for z_ in block_.split('<details class="dienst">')[1:]:
+    kopf_, det_ = z_.split("</summary>")
+    assert not re.search(r"-lauf\b|-[a-z]+-1\b|Container|Timer |Deploy", kopf_), kopf_
+    assert "Deploy-Stand" in det_ and "Zweck" not in det_, det_
+assert "beobachter-lauf" in block_[block_.index("</summary>"):] and "dn.zweck" not in web.texte_de.T and "dn.zweck" not in web.texte_en.T
+# Der Zustand als ein Wort in beiden Sprachen, je mit der Zeit des letzten Laufs: heute die Uhrzeit, sonst das Datum.
+assert web.lauf_zeit(web.iso_utc(jetzt), heute_) == web.fmt.uhrzeit(jetzt.astimezone(web.TZ))
+assert web.lauf_zeit(web.iso_utc(jetzt - timedelta(days=3)), heute_) == web.fmt.datum((jetzt - timedelta(days=3)).astimezone(web.TZ)) and web.lauf_zeit(None, heute_) == ""
+def zustand_(aenderung):
+    x = json.loads(json.dumps(sp_))
+    aenderung(x["dienste"][0])
+    return re.search(r'<span class="palter dzustand">(.*?)</span><span class="chev"', web.server_dienste_block(x, jetzt).split('<details class="dienst">')[1]).group(1)
+FAELLE = (("sauber", "clean", lambda d: None), ("läuft", "running", lambda d: d["timer"][0].update(status="active", gestartet_utc=web.iso_utc(jetzt))),
+          ("kein Lauf", "no run", lambda d: d.update(container=[], timer=[])), ("ohne Timer", "no timer", lambda d: d.update(timer=[])),
+          ("Fehler", "error", lambda d: d["timer"][0].update(ergebnis="exit-code", exit=1)))
+for de_, en_, f_ in FAELLE:
+    assert re.sub("<[^>]+>", "", zustand_(f_)) == de_, (de_, zustand_(f_))
+    with sprache.gilt("en"):
+        assert re.sub("<[^>]+>", "", zustand_(f_)) == en_, (en_, zustand_(f_))
+assert 'glut' in zustand_(FAELLE[-1][2]) and "nicht gemessen" in zustand_(lambda d: d["timer"][0].update(status="ungemessen", grund="kein Zugriff")), "nicht gemessen bleibt keine Aussage über den Lauf"
+# Spuren, Chevron und Schmalform im Stil: unter 700 px fällt der Zweck über dieselbe Regel weg wie der Betreff.
+css_ = (web.WEB / "style.css").read_text()
+assert 'grid-template-columns: 1rem 7rem 2.25rem minmax(0, 1fr) 3.5rem 6rem 1rem;\n  grid-template-areas: "punkt name port betreff alter zustand chev"' in css_
+schmal_ = css_[css_.index("@media (max-width: 700px)"):css_.index(".fuss bricht über")]
+assert 'grid-template-areas: "punkt name port alter zustand chev"' in schmal_ and re.search(r"\.pbetreff[^{]*\{ display: none", schmal_), schmal_
+assert "details.dienst[open] .chev" in css_ and ".chev { grid-area: chev;" in css_
+assert "details.dienst .dport { grid-area: port; } details.dienst .dzustand { grid-area: zustand; }" in css_, "ohne den Vorfahren gewinnt das spätere .palter, und Port, Zeit und Zustand liegen in einer Spur übereinander"
+# Farben: Textfarbe rein schwarz und weiss; in der aktiven Gruppe Name und Alter in Textfarbe, die ruhende bleibt gedämpft.
+assert "--txt: light-dark(#000000, #FFFFFF);" in (web.WEB / "tokens.css").read_text()
+assert ".pliste.aktiv .pname, .pliste.aktiv .palter, details.dienst .palter { color: var(--txt); }" in css_ and ".palter { grid-area: alter; color: var(--lbl);" in css_
+assert ".prow.gedaempft .pname { color: var(--sec);" in css_ and "color: var(--sec)" not in css_[css_.index(".ddetail {"):css_.index(".dz {")]
+# Kanäle tragen Namen aus der Tabelle, in beiden Sprachen; eine fremde Quelle bleibt unter ihrem Schlüssel sichtbar.
+assert [web.kanal(q) for q in ("Debian:stable", "Debian:stable-updates", "Debian-Security:stable-security", "Docker CE:trixie", "Tailscale:pkgs.tailscale.com", "unbekannt", "Beispiel:eins")] \
+    == ["Debian", "Debian-Updates", "Debian-Sicherheit", "Docker", "Tailscale", "unbekannt", "Beispiel:eins"]
+with sprache.gilt("en"):
+    assert (web.kanal("Debian:stable-updates"), web.kanal("Debian-Security:stable-security"), web.kanal("unbekannt")) == ("Debian updates", "Debian security", "unknown")
+kx_ = json.loads(json.dumps(sp_))
+kx_["zustand"].update(pakete_upgradebar=3, pakete_quellen={"Debian-Security:stable-security": 3}, quellen_auto={"Debian-Security:stable-security": True}, unattended_upgrades=True)
+hk_ = web.fuss_updates(kx_)
+assert ">Debian-Sicherheit<" in hk_ and "Debian-Security" not in hk_ and "stable-security" not in hk_, hk_
+kx_["zustand"]["quellen_auto"] = {}
+kx_["zustand"]["unattended_upgrades"] = False
+assert "Debian-Sicherheit: drei Updates offen" in web.server_lage(kx_)[0] and "Debian-Security" not in web.server_lage_block(kx_, jetzt)
+print("ok: Dienstzeile auf festen Spuren mit Chevron, ohne Sätze; Zustandswörter de und en; Kanalnamen aus der Tabelle")
