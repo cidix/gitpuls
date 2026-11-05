@@ -324,6 +324,7 @@ T = {
     "dn.w_kein_lauf": "no run",
     "dn.w_ohne_timer": "no timer",
     "dn.w_fehler": "error",
+    "dn.zweck": "Purpose",
     "dn.dazu": "Also",
     "dn.container_k": "Container",
     "dn.lauf_k": "Run",

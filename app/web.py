@@ -1669,7 +1669,7 @@ def lauf_zeit(iso_s, heute):
 
 
 def server_dienste_block(s, jetzt):
-    """Die Dienste als Zeilen auf festen Spuren (Punkt, Name als Link, Port, Zweck, letzter Lauf mit Zustand als einem Wort, Chevron) mit
+    """Die Dienste als Zeilen auf festen Spuren (Punkt, Name als Link, Port, letzter Lauf mit Zustand als einem Wort, Chevron) mit
     aufklappbarem Detail. Ein konfigurierter Container oder Timer, den der Serverstand nicht findet, steht im Detail mit dem gesuchten
     Namen und «nicht gefunden, tools/dienste.json prüfen»: die Tabelle ist dann veraltet, nicht der Dienst kaputt."""
     heute = jetzt.astimezone(TZ).date()
@@ -1701,9 +1701,9 @@ def server_dienste_block(s, jetzt):
             punkt, zustand, zeit = "mint", t("dn.w_ohne_timer"), d["container"][0]["seit_utc"]
         else:
             punkt, zustand, zeit = "grau", t("dn.w_kein_lauf"), None
-        # Detail: alles, was von der ersten Ebene hierher gewandert ist. Zeilen sind Angaben des Betreibers aus
+        # Detail: alles, was von der ersten Ebene hierher gewandert ist. Zweck und Zeilen sind Angaben des Betreibers aus
         # tools/dienste.json, keine Texte der Oberfläche: sie bleiben in ihrer Sprache (translate="no").
-        det = []
+        det = [f'<div class="dz"><span class="dk">{t("dn.zweck")}</span><span translate="no">{html.escape(d.get("zweck") or "")}</span></div>']
         for x in d.get("zeilen", []):
             det.append(f'<div class="dz"><span class="dk">{t("dn.dazu")}</span><span translate="no">{html.escape(x)}</span></div>')
         for c in d["container"]:
@@ -1763,10 +1763,9 @@ def server_dienste_block(s, jetzt):
             elif alter > DEPLOY_ALT_S:
                 dep = f'<span class="glut">{t("dn.veraltet", zeitpunkt(dp["gemessen"]))}: {dep}</span>'
         det.append(f'<div class="dz"><span class="dk">{t("dn.stand_k")}</span><span>{dep}</span></div>')
-        zweck = html.escape(d.get("zweck") or "")
         return (f'<details class="dienst"><summary><i class="punkt {punkt}" aria-hidden="true"></i><a class="pname" href="{html.escape(d.get("link") or "")}" translate="no">{html.escape(d["name"])}</a>'
-                f'<span class="palter dport">{link_port(d.get("link"))}</span><span class="pbetreff" title="{zweck}" translate="no">{zweck}</span>'
-                f'<span class="palter">{lauf_zeit(zeit, heute)}</span><span class="palter dzustand">{zustand}</span>'
+                f'<span class="palter dport">{link_port(d.get("link"))}</span>'
+                f'<span class="palter dzeit">{lauf_zeit(zeit, heute)}</span><span class="palter dzustand">{zustand}</span>'
                 f'<span class="chev" aria-hidden="true"></span></summary><div class="ddetail">{"".join(det)}</div></details>')
 
     def ungueltig(d, grund):

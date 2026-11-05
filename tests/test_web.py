@@ -3016,7 +3016,7 @@ assert 'ARG GITPULS_VERSION=""' in dockerfile_ and "ENV GITPULS_VERSION=$GITPULS
 assert "build-args: GITPULS_VERSION=${{ steps.meta.outputs.version }}" in (web.WEB.parent.parent / ".github" / "workflows" / "release.yml").read_text()
 print("ok: Version aus dem Bild vor GITPULS_TAG, ohne Build-Argument der Commit")
 
-# Dienstzeile auf festen Spuren (05.11.2026): Punkt, Name, Port, Zweck, Zeit, Zustand als ein Wort, Chevron; die Sätze der Zeile sind weg.
+# Dienstzeile auf festen Spuren (05.11.2026): Punkt, Name, Port, Zeit, Zustand als ein Wort, Chevron; die Sätze der Zeile sind weg, der Zweck steht im Detail.
 sp_ = json.loads((Path(__file__).parent / "server.beispiel.json").read_text())
 sp_["erhoben_utc"] = web.iso_utc(jetzt)
 for d_ in sp_["dienste"]:
@@ -3024,19 +3024,20 @@ for d_ in sp_["dienste"]:
 sp_["dienste"][0]["link"] = "https://host-01.example.ts.net/"
 heute_ = jetzt.astimezone(web.TZ).date()
 SPUREN = re.compile(r'<summary><i class="punkt \w+" aria-hidden="true"></i><a class="pname" href="[^"]*" translate="no">[^<]*</a>'
-                    r'<span class="palter dport">\d+</span><span class="pbetreff" title="Zweck von [^"]*" translate="no">Zweck von [^<]*</span>'
-                    r'<span class="palter">[^<]*</span><span class="palter dzustand">.*?</span><span class="chev" aria-hidden="true"></span></summary>')
+                    r'<span class="palter dport">\d+</span>'
+                    r'<span class="palter dzeit">[^<]*</span><span class="palter dzustand">.*?</span><span class="chev" aria-hidden="true"></span></summary>')
 block_ = web.server_dienste_block(sp_, jetzt)
 assert len(SPUREN.findall(block_)) == len(sp_["dienste"]) == block_.count('class="dienst"'), block_[:600]
 assert 'class="palter dport">443<' in block_ and 'class="palter dport">8447<' in block_, "Port aus dem Link, ohne Angabe der Standardport"
 assert (web.link_port("https://a.example:99999/"), web.link_port(None), web.link_port("http://a.example/")) == ("", "", 80)
 assert "aussage" not in block_ and "aussage" not in (web.WEB / "style.css").read_text()
-# Unit, Timer, Container und Deploy-Stand nur im Aufklappdetail, der Zweck dort nicht mehr.
+# Unit, Timer, Container und Deploy-Stand nur im Aufklappdetail, dort als erste Zeile der Zweck mit Beschriftung; in der Zeile steht er nicht.
 for z_ in block_.split('<details class="dienst">')[1:]:
     kopf_, det_ = z_.split("</summary>")
     assert not re.search(r"-lauf\b|-[a-z]+-1\b|Container|Timer |Deploy", kopf_), kopf_
-    assert "Deploy-Stand" in det_ and "Zweck" not in det_, det_
-assert "beobachter-lauf" in block_[block_.index("</summary>"):] and "dn.zweck" not in web.texte_de.T and "dn.zweck" not in web.texte_en.T
+    assert "Deploy-Stand" in det_ and "Zweck von" not in kopf_ and "pbetreff" not in kopf_, kopf_
+    assert re.match(r'<div class="ddetail"><div class="dz"><span class="dk">Zweck</span><span translate="no">Zweck von ', det_), det_[:200]
+assert "beobachter-lauf" in block_[block_.index("</summary>"):] and web.texte_de.T["dn.zweck"] == "Zweck" and web.texte_en.T["dn.zweck"] == "Purpose"
 # Der Zustand als ein Wort in beiden Sprachen, je mit der Zeit des letzten Laufs: heute die Uhrzeit, sonst das Datum.
 assert web.lauf_zeit(web.iso_utc(jetzt), heute_) == web.fmt.uhrzeit(jetzt.astimezone(web.TZ))
 assert web.lauf_zeit(web.iso_utc(jetzt - timedelta(days=3)), heute_) == web.fmt.datum((jetzt - timedelta(days=3)).astimezone(web.TZ)) and web.lauf_zeit(None, heute_) == ""
@@ -3052,13 +3053,13 @@ for de_, en_, f_ in FAELLE:
     with sprache.gilt("en"):
         assert re.sub("<[^>]+>", "", zustand_(f_)) == en_, (en_, zustand_(f_))
 assert 'glut' in zustand_(FAELLE[-1][2]) and "nicht gemessen" in zustand_(lambda d: d["timer"][0].update(status="ungemessen", grund="kein Zugriff")), "nicht gemessen bleibt keine Aussage über den Lauf"
-# Spuren, Chevron und Schmalform im Stil: unter 700 px fällt der Zweck über dieselbe Regel weg wie der Betreff.
+# Spuren, Chevron und Abstand im Stil: mindestens --s6 zwischen den Spuren, nur bis 500 px enger, weil sechs Spuren dort nicht passen.
 css_ = (web.WEB / "style.css").read_text()
-assert 'grid-template-columns: 1rem 7rem 2.25rem minmax(0, 1fr) 3.5rem 6rem 1rem;\n  grid-template-areas: "punkt name port betreff alter zustand chev"' in css_
-schmal_ = css_[css_.index("@media (max-width: 700px)"):css_.index(".fuss bricht über")]
-assert 'grid-template-areas: "punkt name port alter zustand chev"' in schmal_ and re.search(r"\.pbetreff[^{]*\{ display: none", schmal_), schmal_
+assert 'grid-template-columns: .625rem minmax(0, 7rem) 2rem minmax(3.5rem, 1fr) 4.5rem .75rem;\n  grid-template-areas: "punkt name port alter zustand chev"; column-gap: var(--s6);' in css_
+assert css_.count("details.dienst summary { grid-template-columns:") == 1 and "details.dienst summary { font-size: .8rem; }" in css_[css_.index("@media (max-width: 700px)"):css_.index(".fuss bricht über")]
+assert "@media (max-width: 500px) { details.dienst summary { grid-template-columns: .625rem minmax(0, 1fr) 2rem 3rem 4.5rem .75rem; column-gap: var(--s2); } }" in css_
 assert "details.dienst[open] .chev" in css_ and ".chev { grid-area: chev;" in css_
-assert "details.dienst .dport { grid-area: port; } details.dienst .dzustand { grid-area: zustand; }" in css_, "ohne den Vorfahren gewinnt das spätere .palter, und Port, Zeit und Zustand liegen in einer Spur übereinander"
+assert "details.dienst .dport { grid-area: port; } details.dienst .dzeit { justify-self: end; } details.dienst .dzustand { grid-area: zustand; }" in css_, "ohne den Vorfahren gewinnt das spätere .palter, und Port, Zeit und Zustand liegen in einer Spur übereinander"
 # Farben: Textfarbe rein schwarz und weiss; in der aktiven Gruppe Name und Alter in Textfarbe, die ruhende bleibt gedämpft.
 assert "--txt: light-dark(#000000, #FFFFFF);" in (web.WEB / "tokens.css").read_text()
 assert ".pliste.aktiv .pname, .pliste.aktiv .palter, details.dienst .palter { color: var(--txt); }" in css_ and ".palter { grid-area: alter; color: var(--lbl);" in css_
