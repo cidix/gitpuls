@@ -6,13 +6,13 @@ export function pngMasse(buffer) {   // IHDR: Breite und Höhe ab Byte 16
   return { breite: buffer.readUInt32BE(16), hoehe: buffer.readUInt32BE(20) };
 }
 
-// Selbstprüfung über das fertige Arbeitsverzeichnis: die Zustände eines Paars je Sprache, Modus und Breite dieselben
+// Selbstprüfung über das fertige Arbeitsverzeichnis: je Vergleichsgruppe (id, Sprache, Breite, über Modus und Zustand) dieselben
 // Masse, jede Datei mit den Massen aus dem Manifest, jeder Geometriewert endlich und innerhalb seines Bildes.
 export function pruefen(manifest, dir) {
   const ab = [];
   const anteil = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
   const positiv = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
-  for (const [k, v] of Map.groupBy(manifest.filter((m) => m.paar), (m) => `${m.id} ${m.sprache} ${m.modus} ${m.breite}`))
+  for (const [k, v] of Map.groupBy(manifest, (m) => `${m.id} ${m.sprache} ${m.breite}`))
     if (new Set(v.map((m) => `${m.pixel_breite}x${m.pixel_hoehe}`)).size > 1) ab.push(`${k}: ${v.map((m) => `${m.modus} ${m.zustand} ${m.pixel_breite}x${m.pixel_hoehe}`).join(', ')}`);
   for (const m of manifest) {
     const d = m.datei, px = existsSync(join(dir, d)) ? pngMasse(readFileSync(join(dir, d))) : null;

@@ -4,8 +4,9 @@
 // Aufnahme aus dem Selektor des Elements; bei 1100 px nur dunkel und nur die Einzelausschnitte (AUSSCHNITTE), die die Website in
 // nahezu Originalgrösse zeigt. Der Ausschnitt kommt je Aufnahme aus dem Selektor des Elements, nie aus festen Koordinaten. Zustände eines Paars (busy und ruhig, zu und auf, die zwei
 // Stufen eines Umschalters) bekommen exakt dieselbe Grösse: das kleinere Element wird unten bis zur Höhe des grösseren aufgefüllt,
-// damit die Website die zwei Bilder überblenden kann. Ausgabe nach demo/aufnahmen/ (ignoriert): PNG, manifest.json, index.html, readme/.
-// Sie entsteht in einem Arbeitsverzeichnis daneben und ersetzt den alten Bestand erst, wenn die Selbstprüfung (demo/pruefung.mjs) besteht.
+// damit die Website die zwei Bilder überblenden kann; dasselbe gilt für Hell und Dunkel derselben Aufnahme (Vergleich auf der Website).
+// Ausgabe nach demo/aufnahmen/ (ignoriert): PNG, manifest.json, index.html, readme/. Sie entsteht in einem Arbeitsverzeichnis daneben
+// und ersetzt den alten Bestand erst, wenn die Selbstprüfung (demo/pruefung.mjs) besteht.
 //
 //   cd demo && npm install && node aufnahmen.mjs
 import { chromium } from 'playwright';
@@ -149,89 +150,97 @@ try {
   ziel = mkdtempSync(join(DEMO, '.aufnahmen-neu-'));
   const manifest = [];
   for (const [sprache, locale] of Object.entries(SPRACHEN)) {
-    for (const modus of MODI) {
-      for (const breite of BREITEN) {
+    for (const breite of BREITEN) {
+      // je Modus ein Kontext: Hell und Dunkel derselben Aufnahme werden zusammen gemessen und auf dieselben Masse aufgefüllt,
+      // sonst schneidet der Vergleich auf der Website das höhere Bild ab (gemessen: Dunkel 2136 x 1508, Hell 2136 x 1608)
+      const seiten = {};
+      for (const modus of MODI) {
         const ctx = await browser.newContext({ viewport: { width: breite, height: 900 }, deviceScaleFactor: 2, locale, reducedMotion: 'reduce',
                                                colorScheme: modus === 'dunkel' ? 'dark' : 'light' });
         // Jeder Aufruf beginnt mit den Vorgaben: gemerkte Wahl der Umschalter weg, nur der Modus gesetzt.
         await ctx.addInitScript((m) => { try { localStorage.clear(); localStorage.setItem('gitpuls-modus', m); } catch (e) {} }, modus);
-        const page = await ctx.newPage();
-        // bei 1100 px im Modus hell nur die ganzen Zonen (Vergleich hell und dunkel auf der Website)
-        for (const a of (breite === 1100 ? AUSSCHNITTE : AUFNAHMEN).filter((a) => (breite !== 1100 || modus === 'dunkel' || a.hell) && (!a.nur || (a.nur.includes(breite) && modus === 'dunkel')))) {
-          if (a.seite) {
-            if (breite !== 1440 || modus !== 'dunkel') continue;
-            const z = a.zustaende[0];
-            await laden(page, instanzen[z.szene], sprache, z, a.seite);
-            const unten = await page.locator(a.seite).first().evaluate((e) => e.getBoundingClientRect().bottom + scrollY + 24);
-            const datei = `${a.id}--${z.zustand}--${sprache}-${modus}-${breite}.png`;
-            const px = pngMasse(await page.screenshot({ path: join(ziel, datei), clip: { x: 0, y: 0, width: breite, height: Math.ceil(unten) }, fullPage: true, animations: 'disabled' }));
-            manifest.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei, pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: false });
-            continue;
-          }
-          // Erst die Höhe jedes Zustands, dann alle auf die grösste aufgefüllt aufnehmen.
-          let hoehe = 0;
-          for (const z of a.zustaende) hoehe = Math.max(hoehe, (await (await laden(page, instanzen[z.szene], sprache, z, a.sel)).boundingBox()).height);
-          // Aufgefüllt wird in CSS-px, verglichen wird in Bildpixeln: Zielhöhe und Oberkante sind gebrochen, das Bild rundet je nach Lage anders (Handlungsbedarf
-          // bei 430 px: 644.84 px hoch, Oberkante 3397.75 und 3308.02, Bilder 1292 und 1290 px). Ein kürzerer Zustand bekommt die Differenz und wird neu aufgenommen.
-          const zuschlag = new Map();
-          for (let runde = 0; ; runde++) {
-            const eintraege = [];
-            for (const z of a.zustaende) {
-              const el = await laden(page, instanzen[z.szene], sprache, z, a.sel);
-              await el.evaluate((e, h) => {
-                const ist = e.getBoundingClientRect().height;
-                if (ist < h) e.style.paddingBottom = `${parseFloat(getComputedStyle(e).paddingBottom) + h - ist}px`;
-              }, hoehe + (zuschlag.get(z.zustand) ?? 0));
-              const datei = `${a.id}--${z.zustand}--${sprache}-${modus}-${breite}.png`;
-              // Element mit eigener Fläche (Karte, Zone): alles dahinter transparent (Seite und umgebende Zone), sonst stünde deren
-              // Grund in den Ecken ausserhalb der Rundung und als zweite Kante um die Karte auf der Website
-              const eigen = await el.evaluate((e) => {
-                const ja = getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)';
-                if (ja) for (let x = e.parentElement; x; x = x.parentElement) x.style.setProperty('background', 'transparent', 'important');
-                return ja;
-              });
-              const px = pngMasse(await el.screenshot({ path: join(ziel, datei), animations: 'disabled', omitBackground: eigen }));
-              // Klickpunkt: Mitte des Elements oder 14 px vor seinem rechten Rand (dort sitzt der Aufklapper)
-              const ziel = z.ziel ? await el.evaluate((e, { sel, an }) => {
-                const t = e.matches(sel) ? e : e.querySelector(sel);
-                if (!t) return null;
-                const a = e.getBoundingClientRect(), b = t.getBoundingClientRect();
-                const x = an === 'rechts' ? b.right - 14 : b.left + b.width / 2;
-                return { x: +((x - a.left) / a.width).toFixed(4), y: +((b.top + b.height / 2 - a.top) / a.height).toFixed(4) };
-              }, z.ziel) : undefined;
-              if (z.ziel && !ziel) throw new Error(`${datei}: Ziel ${z.ziel.sel} nicht gefunden`);
-              // erste Reihe des Rasters in CSS-px ab Oberkante des Elements; das Ziel dann als Anteil der Reihe, nicht des Elements
-              const reihe = a.reihe ? await el.evaluate((e, sel) => {
-                const s = e.getBoundingClientRect(), zellen = [...e.querySelectorAll(':scope > .hraster > div')].map((d) => d.getBoundingClientRect());
-                const oben = zellen[0].top, unten = Math.max(...zellen.filter((r) => Math.abs(r.top - oben) < 1).map((r) => r.bottom));
-                const b = e.querySelector(sel).getBoundingClientRect();
-                return { y: +(oben - s.top).toFixed(2), h: +(unten - oben).toFixed(2), breite: +s.width.toFixed(2),
-                         ziel: { x: +((b.right - 14 - s.left) / s.width).toFixed(4), y: +((b.top + b.height / 2 - oben) / (unten - oben)).toFixed(4) } };
-              }, z.ziel.sel) : undefined;
-              const spalte = a.spalte ? await el.evaluate((e, sel) => {
-                const s = e.getBoundingClientRect(), b = e.querySelector(sel).getBoundingClientRect();
-                return { y: +((b.top - s.top) / s.width).toFixed(5), h: +(b.height / s.width).toFixed(5), w: +((b.right - s.left) / s.width).toFixed(5) };
-              }, a.spalte) : undefined;
-              // Zeilen (Dienstliste): Unterkante jeder Zeile und Mitte ihres Statuspunkts als Anteil des Ausschnitts
-              const zeilen = a.zeilen ? await el.evaluate((e, sel) => {
-                const a = e.getBoundingClientRect();
-                return [...e.querySelectorAll(sel)].map((s) => {
-                  const b = s.getBoundingClientRect(), p = s.querySelector('.punkt').getBoundingClientRect();
-                  return { unten: +((b.bottom - a.top) / a.height).toFixed(4), x: +((p.left + p.width / 2 - a.left) / a.width).toFixed(4), y: +((p.top + p.height / 2 - a.top) / a.height).toFixed(4) };
-                });
-              }, a.zeilen) : undefined;
-              eintraege.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei,
-                              pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: a.zustaende.length > 1, ...(ziel && { ziel }), ...(zeilen && { zeilen }),
-                              ...(reihe && { reihe }), ...(spalte && { spalte }) });
-            }
-            const hoechste = Math.max(...eintraege.map((m) => m.pixel_hoehe));
-            const kuerzere = eintraege.filter((m) => m.pixel_hoehe < hoechste);
-            if (!kuerzere.length || runde === 2) { manifest.push(...eintraege); break; }   // nach zwei Korrekturen meldet die Selbstprüfung unten
-            for (const m of kuerzere) zuschlag.set(m.zustand, (zuschlag.get(m.zustand) ?? 0) + (hoechste - m.pixel_hoehe) / 2);   // deviceScaleFactor 2
-          }
-        }
-        await ctx.close();
+        seiten[modus] = { ctx, page: await ctx.newPage() };
       }
+      for (const a of breite === 1100 ? AUSSCHNITTE : AUFNAHMEN) {
+        // bei 1100 px im Modus hell nur die ganzen Zonen (Vergleich hell und dunkel auf der Website)
+        const modi = MODI.filter((modus) => (breite !== 1100 || modus === 'dunkel' || a.hell) && (!a.nur || (a.nur.includes(breite) && modus === 'dunkel')));
+        if (!modi.length) continue;
+        if (a.seite) {
+          if (breite !== 1440) continue;
+          const modus = 'dunkel', page = seiten[modus].page, z = a.zustaende[0];
+          await laden(page, instanzen[z.szene], sprache, z, a.seite);
+          const unten = await page.locator(a.seite).first().evaluate((e) => e.getBoundingClientRect().bottom + scrollY + 24);
+          const datei = `${a.id}--${z.zustand}--${sprache}-${modus}-${breite}.png`;
+          const px = pngMasse(await page.screenshot({ path: join(ziel, datei), clip: { x: 0, y: 0, width: breite, height: Math.ceil(unten) }, fullPage: true, animations: 'disabled' }));
+          manifest.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei, pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: false });
+          continue;
+        }
+        // Vergleichsgruppe: jeder Zustand in jedem Modus dieser Aufnahme bei dieser Sprache und Breite. Erst die Höhe aller, dann alle
+        // auf die grösste aufgefüllt aufnehmen, auch eine Aufnahme mit nur einem Zustand (Serverzone hell und dunkel).
+        const glieder = modi.flatMap((modus) => a.zustaende.map((z) => ({ modus, z })));
+        let hoehe = 0;
+        for (const { modus, z } of glieder) hoehe = Math.max(hoehe, (await (await laden(seiten[modus].page, instanzen[z.szene], sprache, z, a.sel)).boundingBox()).height);
+        // Aufgefüllt wird in CSS-px, verglichen wird in Bildpixeln: Zielhöhe und Oberkante sind gebrochen, das Bild rundet je nach Lage anders (Handlungsbedarf
+        // bei 430 px: 644.84 px hoch, Oberkante 3397.75 und 3308.02, Bilder 1292 und 1290 px). Ein kürzeres Glied bekommt die Differenz und wird neu aufgenommen.
+        const zuschlag = new Map();
+        for (let runde = 0; ; runde++) {
+          const eintraege = [];
+          for (const { modus, z } of glieder) {
+            const page = seiten[modus].page;
+            const el = await laden(page, instanzen[z.szene], sprache, z, a.sel);
+            await el.evaluate((e, h) => {
+              const ist = e.getBoundingClientRect().height;
+              if (ist < h) e.style.paddingBottom = `${parseFloat(getComputedStyle(e).paddingBottom) + h - ist}px`;
+            }, hoehe + (zuschlag.get(`${modus} ${z.zustand}`) ?? 0));
+            const datei = `${a.id}--${z.zustand}--${sprache}-${modus}-${breite}.png`;
+            // Element mit eigener Fläche (Karte, Zone): alles dahinter transparent (Seite und umgebende Zone), sonst stünde deren
+            // Grund in den Ecken ausserhalb der Rundung und als zweite Kante um die Karte auf der Website
+            const eigen = await el.evaluate((e) => {
+              const ja = getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)';
+              if (ja) for (let x = e.parentElement; x; x = x.parentElement) x.style.setProperty('background', 'transparent', 'important');
+              return ja;
+            });
+            const px = pngMasse(await el.screenshot({ path: join(ziel, datei), animations: 'disabled', omitBackground: eigen }));
+            // Klickpunkt: Mitte des Elements oder 14 px vor seinem rechten Rand (dort sitzt der Aufklapper)
+            const zielpunkt = z.ziel ? await el.evaluate((e, { sel, an }) => {
+              const t = e.matches(sel) ? e : e.querySelector(sel);
+              if (!t) return null;
+              const a = e.getBoundingClientRect(), b = t.getBoundingClientRect();
+              const x = an === 'rechts' ? b.right - 14 : b.left + b.width / 2;
+              return { x: +((x - a.left) / a.width).toFixed(4), y: +((b.top + b.height / 2 - a.top) / a.height).toFixed(4) };
+            }, z.ziel) : undefined;
+            if (z.ziel && !zielpunkt) throw new Error(`${datei}: Ziel ${z.ziel.sel} nicht gefunden`);
+            // erste Reihe des Rasters in CSS-px ab Oberkante des Elements; das Ziel dann als Anteil der Reihe, nicht des Elements
+            const reihe = a.reihe ? await el.evaluate((e, sel) => {
+              const s = e.getBoundingClientRect(), zellen = [...e.querySelectorAll(':scope > .hraster > div')].map((d) => d.getBoundingClientRect());
+              const oben = zellen[0].top, unten = Math.max(...zellen.filter((r) => Math.abs(r.top - oben) < 1).map((r) => r.bottom));
+              const b = e.querySelector(sel).getBoundingClientRect();
+              return { y: +(oben - s.top).toFixed(2), h: +(unten - oben).toFixed(2), breite: +s.width.toFixed(2),
+                       ziel: { x: +((b.right - 14 - s.left) / s.width).toFixed(4), y: +((b.top + b.height / 2 - oben) / (unten - oben)).toFixed(4) } };
+            }, z.ziel.sel) : undefined;
+            const spalte = a.spalte ? await el.evaluate((e, sel) => {
+              const s = e.getBoundingClientRect(), b = e.querySelector(sel).getBoundingClientRect();
+              return { y: +((b.top - s.top) / s.width).toFixed(5), h: +(b.height / s.width).toFixed(5), w: +((b.right - s.left) / s.width).toFixed(5) };
+            }, a.spalte) : undefined;
+            // Zeilen (Dienstliste): Unterkante jeder Zeile und Mitte ihres Statuspunkts als Anteil des Ausschnitts
+            const zeilen = a.zeilen ? await el.evaluate((e, sel) => {
+              const a = e.getBoundingClientRect();
+              return [...e.querySelectorAll(sel)].map((s) => {
+                const b = s.getBoundingClientRect(), p = s.querySelector('.punkt').getBoundingClientRect();
+                return { unten: +((b.bottom - a.top) / a.height).toFixed(4), x: +((p.left + p.width / 2 - a.left) / a.width).toFixed(4), y: +((p.top + p.height / 2 - a.top) / a.height).toFixed(4) };
+              });
+            }, a.zeilen) : undefined;
+            eintraege.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei,
+                            pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: a.zustaende.length > 1, ...(zielpunkt && { ziel: zielpunkt }), ...(zeilen && { zeilen }),
+                            ...(reihe && { reihe }), ...(spalte && { spalte }) });
+          }
+          const hoechste = Math.max(...eintraege.map((m) => m.pixel_hoehe));
+          const kuerzere = eintraege.filter((m) => m.pixel_hoehe < hoechste);
+          if (!kuerzere.length || runde === 2) { manifest.push(...eintraege); break; }   // nach zwei Korrekturen bricht die Selbstprüfung unten ab
+          for (const m of kuerzere) zuschlag.set(`${m.modus} ${m.zustand}`, (zuschlag.get(`${m.modus} ${m.zustand}`) ?? 0) + (hoechste - m.pixel_hoehe) / 2);   // deviceScaleFactor 2
+        }
+      }
+      for (const { ctx } of Object.values(seiten)) await ctx.close();
     }
   }
   await readmeAufnahmen(browser, instanzen.busy, join(ziel, 'readme'));
@@ -245,13 +254,15 @@ try {
   try { renameSync(ziel, AUS); } catch (e) { if (existsSync(alt)) renameSync(alt, AUS); throw e; }
   ziel = null;
   rmSync(alt, { recursive: true, force: true });
-  console.log(`${manifest.length} Aufnahmen nach ${AUS}`);
+  const gruppen = new Set(manifest.map((m) => `${m.id} ${m.sprache} ${m.breite}`)).size;
+  console.log(`${manifest.length} Aufnahmen, ${gruppen} Vergleichsgruppen gleich gross, nach ${AUS}`);
 } finally {
   await browser.close();
   for (const i of Object.values(instanzen)) i.prozess.kill();
   rmSync(daten, { recursive: true, force: true });
   if (ziel) rmSync(ziel, { recursive: true, force: true });   // nicht getauscht: Arbeitsverzeichnis verwerfen, alter Bestand bleibt
 }
+
 
 // Bilder für das README (11.10.2026): englisch, Szene busy, 1280 px Viewport, jedes auf denselben waagrechten Ausschnitt (main) zugeschnitten,
 // damit alle dieselbe Breite haben. Handy und «hell und dunkel» werden im Browser aus echten Aufnahmen zusammengesetzt. Ausgabe nach
@@ -264,11 +275,13 @@ async function readmeAufnahmen(browser, instanz, RM) {
     await ctx.addInitScript((m) => { try { localStorage.clear(); localStorage.setItem('gitpuls-modus', m); } catch (e) {} }, modus);
     return ctx;
   });
-  // Ein Bild von oben (erstes Element) bis unten (letztes Element), waagrecht immer main samt RAND
-  const bild = async (page, datei, oben, unten = oben, vorher) => {
+  // Ein Bild von oben (erstes Element) bis unten (letztes Element), waagrecht immer main samt RAND; mit `auffuellen` (CSS-px) wird das
+  // unterste Element unten um so viel verlängert, auf seinem eigenen Grund (Hell und Dunkel der Serverzone gleich hoch)
+  const bild = async (page, datei, oben, unten = oben, vorher, auffuellen = 0) => {
     await page.goto(`${instanz.adresse}/?lang=en`, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
     if (vorher) await vorher(page);
+    if (auffuellen > 0) await page.evaluate(([u, d]) => { const e = document.querySelector(u); e.style.paddingBottom = `${parseFloat(getComputedStyle(e).paddingBottom) + d}px`; }, [unten, auffuellen]);
     const r = await page.evaluate(([o, u]) => {
       const m = document.querySelector('main').getBoundingClientRect(), a = o ? document.querySelector(o).getBoundingClientRect() : { top: -scrollY };
       const b = document.querySelector(u).getBoundingClientRect();
@@ -280,6 +293,7 @@ async function readmeAufnahmen(browser, instanz, RM) {
     return r.w;
   };
   let breite = 0;
+  const auffuellen = { dunkel: 0, hell: 0 };
   for (const modus of ['dunkel', 'hell']) {
     const ctx = await kontext(modus), page = await ctx.newPage();
     // GitHub-Zone bis unter die Kacheln: Kopf, Lagesatz mit Ring und Handlungsbedarf, drei Kacheln (Hero des README)
@@ -321,6 +335,17 @@ async function readmeAufnahmen(browser, instanz, RM) {
   await setzen('handy.png', `<div style="display:flex;gap:24px;justify-content:center">${schirme.map((s) =>
     `<img src="data:image/png;base64,${s}" style="width:${(breite - 48) / 3}px;border-radius:18px;border:1px solid #2a2f36">`).join('')}</div>`);
   // hell und dunkel: dieselbe Serverzone, links dunkel, rechts hell
+  // Hell und Dunkel der Serverzone auf dieselben Masse: das kürzere unten auf seinem Grund auffüllen, höchstens zwei Korrekturen
+  for (let runde = 0; ; runde++) {
+    const px = { dunkel: pngMasse(readFileSync(join(RM, 'server-dunkel.png'))), hell: pngMasse(readFileSync(join(RM, 'server-hell.png'))) };
+    if (px.dunkel.breite === px.hell.breite && px.dunkel.hoehe === px.hell.hoehe) break;
+    if (runde === 2 || px.dunkel.breite !== px.hell.breite) throw new Error(`README server-dunkel.png ${px.dunkel.breite}x${px.dunkel.hoehe} und server-hell.png ${px.hell.breite}x${px.hell.hoehe} ungleich`);
+    const kurz = px.dunkel.hoehe < px.hell.hoehe ? 'dunkel' : 'hell', lang_ = kurz === 'dunkel' ? 'hell' : 'dunkel';
+    auffuellen[kurz] += (px[lang_].hoehe - px[kurz].hoehe) / DSF;
+    const ctx = await kontext(kurz), page = await ctx.newPage();
+    await bild(page, `server-${kurz}.png`, 'section.zone.server', 'section.zone.server > .zwei', undefined, auffuellen[kurz]);
+    await ctx.close();
+  }
   const b64 = (f) => readFileSync(join(RM, f)).toString('base64');
   await setzen('hell-dunkel.png', `<div style="position:relative"><img src="data:image/png;base64,${b64('server-dunkel.png')}" style="width:100%;display:block">`
     + `<img src="data:image/png;base64,${b64('server-hell.png')}" style="width:100%;display:block;position:absolute;inset:0;clip-path:inset(0 0 0 50%)">`
