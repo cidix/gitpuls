@@ -468,6 +468,12 @@ document.querySelectorAll('a[href^="#hb-"]').forEach(function(a){a.addEventListe
 if(location.hash.indexOf('#hb-')===0)zeigeEintrag(decodeURIComponent(location.hash.slice(1)));
 document.querySelectorAll('a[href^="#p-"]').forEach(function(a){a.addEventListener('click',function(){oeffne(a.getAttribute('href').slice(1));});});
 if(location.hash.indexOf('#p-')===0)oeffne(decodeURIComponent(location.hash.slice(1)));
+// Dienstzeile: jede Spur so breit wie ihr längster Text samt Kopf, damit die Lücke zur nächsten Spalte überall --s6 ist (05.11.2026). Eine Range misst den Text auch dann, wenn die Spur kürzt.
+var dienste=document.querySelector('.tile.dienste');
+function dienstSpuren(){[['--dname','.dname,.pname'],['--dport','.dport'],['--dzustand','.dzustand'],['--dzuletzt','.pkalter,.dzeit']].forEach(function(p){var m=0;
+  dienste.querySelectorAll(p[1]).forEach(function(e){var r=document.createRange();r.selectNodeContents(e);m=Math.max(m,r.getBoundingClientRect().width);});
+  dienste.style.setProperty(p[0],Math.ceil(m*10)/10+'px');});}
+if(dienste){dienstSpuren();matchMedia('(max-width: 700px)').addEventListener('change',dienstSpuren);}
 })();
 </script>"""
 
@@ -1765,7 +1771,7 @@ def server_dienste_block(s, jetzt):
         det.append(f'<div class="dz"><span class="dk">{t("dn.stand_k")}</span><span>{dep}</span></div>')
         return (f'<details class="dienst"><summary><i class="punkt {punkt}" aria-hidden="true"></i><a class="pname" href="{html.escape(d.get("link") or "")}" translate="no">{html.escape(d["name"])}</a>'
                 f'<span class="palter dport">{link_port(d.get("link"))}</span><span class="palter dzustand">{zustand}</span>'
-                f'<span class="palter">{lauf_zeit(zeit, heute)}</span>'
+                f'<span class="palter dzeit">{lauf_zeit(zeit, heute)}</span>'
                 f'<span class="chev" aria-hidden="true"></span></summary><div class="ddetail">{"".join(det)}</div></details>')
 
     def ungueltig(d, grund):

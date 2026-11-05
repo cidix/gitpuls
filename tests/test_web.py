@@ -1912,20 +1912,27 @@ assert os.environ["TZ"].startswith(":/") and os.path.isfile(os.environ["TZ"][1:]
     "libc wird auf genau die Datei gezwungen, die Python gelesen hat", os.environ["TZ"])
 _speicher = _sq.connect(":memory:")
 assert web.zonendeckung(_speicher, web.TZ, date(2026, 1, 1), date(2026, 12, 31)) is None, "die geltende Zone deckt"
-# Das reproduzierte Paar: SQLite auf Helsinki, Python auf Jerusalem. Muss eine Abweichung mit Zone, Zeitpunkt
-# und beiden Werten melden — und zwar am 27.03.2026, dem Tag um 2026-03-27T21:30:00Z aus dem Befund.
+# Das reproduzierte Paar, seit 05.11.2026 künstlich und ohne Zonendaten des Systems: SQLite liest eine POSIX-Regel aus TZ, Python eine ZoneInfo aus Bytes. Regeln von Helsinki
+# (letzter Sonntag im März, 03:00) und Jerusalem (Freitag davor, 02:00, also 00:00Z). Muss eine Abweichung mit Zone, Zeitpunkt und beiden Werten melden, am 27.03.2026.
+import io as _io, struct as _struct  # noqa: E402
+def _kunst_zone(regel, key):
+    """Eine ZoneInfo nur aus der POSIX-Regel im Fuss einer TZif-Datei, ohne Übergangstabelle."""
+    teil = b"TZif2" + bytes(15) + _struct.pack(">6l", 0, 0, 0, 0, 1, 4) + _struct.pack(">lBB", 0, 0, 0) + b"UTC\0"
+    return _ZI2.from_file(_io.BytesIO(teil + teil + b"\n" + regel.encode() + b"\n"), key=key)
+_REGEL_SONNTAG, _REGEL_FREITAG = "KSA-2KSB,M3.5.0/3,M10.5.0/4", "KFA-2KFB,M3.4.4/26,M10.5.0/2"
+_kunst_freitag = _kunst_zone(_REGEL_FREITAG, "Kunst/Freitag")
 _tz_vorher = os.environ["TZ"]
-os.environ["TZ"] = "Europe/Helsinki"
+os.environ["TZ"] = _REGEL_SONNTAG
 _zeit.tzset()
-_helsinki = _sq.connect(":memory:")
-assert _helsinki.execute("SELECT datetime('2026-03-27T21:30:00Z', 'localtime')").fetchone()[0] == "2026-03-27 23:30:00"
-assert datetime.fromisoformat("2026-03-27T21:30:00+00:00").astimezone(_ZI2("Asia/Jerusalem")).strftime(
+_kunst_tag = _sq.connect(":memory:")
+assert _kunst_tag.execute("SELECT datetime('2026-03-27T21:30:00Z', 'localtime')").fetchone()[0] == "2026-03-27 23:30:00"
+assert datetime.fromisoformat("2026-03-27T21:30:00+00:00").astimezone(_kunst_freitag).strftime(
     "%Y-%m-%d %H:%M:%S") == "2026-03-28 00:30:00", "Befund: dieselbe Sekunde, zwei Tage"
-meldung = web.zonendeckung(_helsinki, _ZI2("Asia/Jerusalem"), date(2026, 1, 1), date(2026, 12, 31))
-assert meldung and "Asia/Jerusalem" in meldung and "27.03.2026" in meldung, meldung
+meldung = web.zonendeckung(_kunst_tag, _kunst_freitag, date(2026, 1, 1), date(2026, 12, 31))
+assert meldung and "Kunst/Freitag" in meldung and "27.03.2026" in meldung, meldung
 assert "Python" in meldung and "SQLite" in meldung, ("die Meldung nennt beide Werte", meldung)
 # Gegenprobe grün: zwei Zonen mit gleichem Offset UND gleichen Umstellungsterminen laufen nicht auseinander.
-assert web.zonendeckung(_helsinki, _ZI2("Europe/Kyiv"), date(2026, 1, 1), date(2026, 12, 31)) is None, "gleiche Regel deckt"
+assert web.zonendeckung(_kunst_tag, _kunst_zone(_REGEL_SONNTAG, "Kunst/Gleich"), date(2026, 1, 1), date(2026, 12, 31)) is None, "gleiche Regel deckt"
 os.environ["TZ"] = _tz_vorher
 _zeit.tzset()
 
@@ -1934,11 +1941,6 @@ _zeit.tzset()
 # überein; nur in den Stunden dazwischen laufen sie auseinander. Das Paar ist seit 05.11.2026 künstlich: SQLite liest eine POSIX-Regel aus TZ,
 # Python eine ZoneInfo aus Bytes, beide ohne Zonendaten des Systems. Vorher America/Havana gegen America/New_York; tzdata 2026f nimmt Havana die
 # Umstellung im Herbst 2026, die Prüfung wurde rot, ohne dass der Code sich geändert hatte.
-import io as _io, struct as _struct  # noqa: E402
-def _kunst_zone(regel, key):
-    """Eine ZoneInfo nur aus der POSIX-Regel im Fuss einer TZif-Datei, ohne Übergangstabelle."""
-    teil = b"TZif2" + bytes(15) + _struct.pack(">6l", 0, 0, 0, 0, 1, 4) + _struct.pack(">lBB", 0, 0, 0) + b"UTC\0"
-    return _ZI2.from_file(_io.BytesIO(teil + teil + b"\n" + regel.encode() + b"\n"), key=key)
 _REGEL_FRUEH, _REGEL_SPAET = "KUA5KUB,M3.2.0/0,M11.1.0/1", "KNA5KNB,M3.2.0/2,M11.1.0/2"
 _kunst_spaet = _kunst_zone(_REGEL_SPAET, "Kunst/Spaet")
 os.environ["TZ"] = _REGEL_FRUEH
@@ -1956,11 +1958,11 @@ assert "2026-03-08" in meldung2 or "2026-11-01" in meldung2, ("der Übergangstag
 assert "Python" in meldung2 and "SQLite" in meldung2, meldung2
 assert web.zonendeckung(_kunst, _kunst_zone(_REGEL_FRUEH, "Kunst/Gleich"), date(2026, 1, 1), date(2026, 12, 31)) is None, "dieselbe Regel deckt"
 # Und die alte Prüfung an zwei Stichproben hätte beide Paare durchgelassen — der Grund, warum sie ersetzt ist.
-os.environ["TZ"] = "Europe/Helsinki"
+os.environ["TZ"] = _REGEL_SONNTAG
 _zeit.tzset()
 for _iso in ("2026-01-15T12:00:00Z", "2026-07-15T12:00:00Z"):
-    _sql_wert = _helsinki.execute("SELECT strftime('%Y-%m-%d %H:%M', ?, 'localtime')", (_iso,)).fetchone()[0]
-    _py_wert = datetime.fromisoformat(_iso.replace("Z", "+00:00")).astimezone(_ZI2("Asia/Jerusalem")).strftime("%Y-%m-%d %H:%M")
+    _sql_wert = _kunst_tag.execute("SELECT strftime('%Y-%m-%d %H:%M', ?, 'localtime')", (_iso,)).fetchone()[0]
+    _py_wert = datetime.fromisoformat(_iso.replace("Z", "+00:00")).astimezone(_kunst_freitag).strftime("%Y-%m-%d %H:%M")
     assert _sql_wert == _py_wert, (_iso, "Januar und Juli decken sich, genau das war die Falle")
 os.environ["TZ"] = _tz_vorher
 _zeit.tzset()
@@ -3025,7 +3027,7 @@ sp_["dienste"][0]["link"] = "https://host-01.example.ts.net/"
 heute_ = jetzt.astimezone(web.TZ).date()
 SPUREN = re.compile(r'<summary><i class="punkt \w+" aria-hidden="true"></i><a class="pname" href="[^"]*" translate="no">[^<]*</a>'
                     r'<span class="palter dport">\d+</span><span class="palter dzustand">.*?</span>'
-                    r'<span class="palter">[^<]*</span><span class="chev" aria-hidden="true"></span></summary>')
+                    r'<span class="palter dzeit">[^<]*</span><span class="chev" aria-hidden="true"></span></summary>')
 block_ = web.server_dienste_block(sp_, jetzt)
 assert len(SPUREN.findall(block_)) == len(sp_["dienste"]) == block_.count('class="dienst"'), block_[:600]
 kopfzeile_ = lambda *k: f'<p class="pgruppe spalten dkopf"><span class="dname">{k[0]}</span><span class="dport">{k[1]}</span><span class="dzustand">{k[2]}</span><span class="pkalter">{k[3]}</span></p>'
@@ -3049,7 +3051,7 @@ assert web.lauf_zeit(web.iso_utc(jetzt - timedelta(days=3)), heute_) == web.fmt.
 def zustand_(aenderung):
     x = json.loads(json.dumps(sp_))
     aenderung(x["dienste"][0])
-    return re.search(r'<span class="palter dzustand">(.*?)</span><span class="palter">', web.server_dienste_block(x, jetzt).split('<details class="dienst">')[1]).group(1)
+    return re.search(r'<span class="palter dzustand">(.*?)</span><span class="palter dzeit">', web.server_dienste_block(x, jetzt).split('<details class="dienst">')[1]).group(1)
 FAELLE = (("sauber", "clean", lambda d: None), ("läuft", "running", lambda d: d["timer"][0].update(status="active", gestartet_utc=web.iso_utc(jetzt))),
           ("kein Lauf", "no run", lambda d: d.update(container=[], timer=[])), ("ohne Timer", "no timer", lambda d: d.update(timer=[])),
           ("Fehler", "error", lambda d: d["timer"][0].update(ergebnis="exit-code", exit=1)))
@@ -3061,13 +3063,18 @@ assert 'glut' in zustand_(FAELLE[-1][2]) and "nicht gemessen" in zustand_(lambda
 # Spuren, Chevron und Abstand im Stil: mindestens --s6 zwischen den Spuren, nur bis 500 px enger, weil sechs Spuren dort nicht passen.
 css_ = (web.WEB / "style.css").read_text()
 kopf_und_zeile = "details.dienst summary, .pgruppe.spalten.dkopf { "
-assert kopf_und_zeile + 'display: grid; grid-template-columns: .625rem minmax(0, 7rem) 2.25rem 6.25rem 4.125rem minmax(.75rem, 1fr);\n  grid-template-areas: "punkt name port zustand alter chev"; column-gap: var(--s6); }' in css_, "Folge und Abstand, freier Raum nur in der Spur des Chevrons"
-assert kopf_und_zeile + "grid-template-columns: .625rem minmax(0, 7rem) 2rem 6rem 3.75rem minmax(.75rem, 1fr); }" in css_[css_.index("@media (max-width: 700px)"):css_.index(".fuss bricht über")]
-assert "@media (max-width: 500px) { " + kopf_und_zeile + "column-gap: var(--s2); } }" in css_
+assert kopf_und_zeile + 'display: grid; grid-template-columns: .625rem minmax(0, var(--dname, 7rem)) var(--dport, 2.25rem) var(--dzustand, 6.8rem) var(--dzuletzt, 4.125rem) minmax(.75rem, 1fr);\n  grid-template-areas: "punkt name port zustand alter chev"; column-gap: var(--s6); }' in css_, "Folge und Abstand, freier Raum nur in der Spur des Chevrons"
+assert css_.count(kopf_und_zeile) == 2 and "@media (max-width: 500px) { " + kopf_und_zeile + "column-gap: var(--s2); } }" in css_
+# Jede Spur misst das Skript am Text samt Kopf, Name bis Zuletzt; ohne Skript gelten die festen Werte.
+sk_ = web.skript()
+assert all(f"['--d{a_}','{b_}']" in sk_ for a_, b_ in (("name", ".dname,.pname"), ("port", ".dport"), ("zustand", ".dzustand"), ("zuletzt", ".pkalter,.dzeit"))), sk_[-900:]
+assert "if(dienste){dienstSpuren();matchMedia('(max-width: 700px)')" in sk_, "ohne Dienste kein Fehler, an der Grenze der Schriftgrösse neu gemessen"
 assert "minmax(min(28.5rem, 100%), 1fr)" in css_, "die zwei Kacheln stapeln, bevor die sechs Spuren mit --s6 nicht mehr passen"
-# Die Zustandsspur trägt das längste Zustandswort beider Sprachen: «nicht gemessen», im Browser gemessen 99.5 px bei 13.6 px (Spur 100 px) und 94.4 px bei 12.8 px (Spur 96 px).
+# Die Zustandsspur trägt das längste Zustandswort beider Sprachen, «nicht gemessen», gemessen 7.32em, mit Reserve in em am Text selbst; die Rückfallspur hat dasselbe Mass (8em bei .85rem).
 worte_ = [q.T[k] for q in (web.texte_de, web.texte_en) for k in ("dn.w_sauber", "dn.w_laeuft", "dn.w_kein_lauf", "dn.w_ohne_timer", "dn.w_fehler", "dn.nicht_gemessen")]
 assert max(worte_, key=len) == "nicht gemessen" == web.texte_de.T["dn.nicht_gemessen"], worte_
+assert ".dzustand .muted { display: inline-block; min-width: 8em; }" in css_ and "var(--dzustand, 6.8rem)" in css_, "Reserve in em"
+assert '<span class="palter dzustand"><span class="muted"' in web.server_dienste_block({**sp_, "dienste": [{**sp_["dienste"][0], "timer": [{**sp_["dienste"][0]["timer"][0], "status": "ungemessen"}]}]}, jetzt), "die Reserve greift am Zustand nicht gemessen"
 assert "details.dienst[open] .chev" in css_ and ".chev { grid-area: chev;" in css_
 assert ".tile.dienste .dname { grid-area: name; } .tile.dienste .dport { grid-area: port; } .tile.dienste .dzustand { grid-area: zustand; }" in css_, "ohne den Vorfahren gewinnt das spätere .palter, und Port, Zeit und Zustand liegen in einer Spur übereinander"
 # Farben: Textfarbe rein schwarz und weiss; in der aktiven Gruppe Name und Alter in Textfarbe, die ruhende bleibt gedämpft.
