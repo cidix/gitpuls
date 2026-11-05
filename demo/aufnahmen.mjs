@@ -165,49 +165,59 @@ try {
           // Erst die Höhe jedes Zustands, dann alle auf die grösste aufgefüllt aufnehmen.
           let hoehe = 0;
           for (const z of a.zustaende) hoehe = Math.max(hoehe, (await (await laden(page, instanzen[z.szene], sprache, z, a.sel)).boundingBox()).height);
-          for (const z of a.zustaende) {
-            const el = await laden(page, instanzen[z.szene], sprache, z, a.sel);
-            await el.evaluate((e, h) => {
-              const ist = e.getBoundingClientRect().height;
-              if (ist < h) e.style.paddingBottom = `${parseFloat(getComputedStyle(e).paddingBottom) + h - ist}px`;
-            }, hoehe);
-            const datei = `${a.id}--${z.zustand}--${sprache}-${modus}-${breite}.png`;
-            // Element mit eigener Fläche (Karte, Zone): alles dahinter transparent (Seite und umgebende Zone), sonst stünde deren
-            // Grund in den Ecken ausserhalb der Rundung und als zweite Kante um die Karte auf der Website
-            const eigen = await el.evaluate((e) => {
-              const ja = getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)';
-              if (ja) for (let x = e.parentElement; x; x = x.parentElement) x.style.setProperty('background', 'transparent', 'important');
-              return ja;
-            });
-            const px = pngMasse(await el.screenshot({ path: join(AUS, datei), animations: 'disabled', omitBackground: eigen }));
-            // Klickpunkt: Mitte des Elements oder 14 px vor seinem rechten Rand (dort sitzt der Aufklapper)
-            const ziel = z.ziel ? await el.evaluate((e, { sel, an }) => {
-              const t = e.matches(sel) ? e : e.querySelector(sel);
-              if (!t) return null;
-              const a = e.getBoundingClientRect(), b = t.getBoundingClientRect();
-              const x = an === 'rechts' ? b.right - 14 : b.left + b.width / 2;
-              return { x: +((x - a.left) / a.width).toFixed(4), y: +((b.top + b.height / 2 - a.top) / a.height).toFixed(4) };
-            }, z.ziel) : undefined;
-            if (z.ziel && !ziel) throw new Error(`${datei}: Ziel ${z.ziel.sel} nicht gefunden`);
-            // erste Reihe des Rasters in CSS-px ab Oberkante des Elements; das Ziel dann als Anteil der Reihe, nicht des Elements
-            const reihe = a.reihe ? await el.evaluate((e, sel) => {
-              const s = e.getBoundingClientRect(), zellen = [...e.querySelectorAll(':scope > .hraster > div')].map((d) => d.getBoundingClientRect());
-              const oben = zellen[0].top, unten = Math.max(...zellen.filter((r) => Math.abs(r.top - oben) < 1).map((r) => r.bottom));
-              const b = e.querySelector(sel).getBoundingClientRect();
-              return { y: +(oben - s.top).toFixed(2), h: +(unten - oben).toFixed(2), breite: +s.width.toFixed(2),
-                       ziel: { x: +((b.right - 14 - s.left) / s.width).toFixed(4), y: +((b.top + b.height / 2 - oben) / (unten - oben)).toFixed(4) } };
-            }, z.ziel.sel) : undefined;
-            // Zeilen (Dienstliste): Unterkante jeder Zeile und Mitte ihres Statuspunkts als Anteil des Ausschnitts
-            const zeilen = a.zeilen ? await el.evaluate((e, sel) => {
-              const a = e.getBoundingClientRect();
-              return [...e.querySelectorAll(sel)].map((s) => {
-                const b = s.getBoundingClientRect(), p = s.querySelector('.punkt').getBoundingClientRect();
-                return { unten: +((b.bottom - a.top) / a.height).toFixed(4), x: +((p.left + p.width / 2 - a.left) / a.width).toFixed(4), y: +((p.top + p.height / 2 - a.top) / a.height).toFixed(4) };
+          // Aufgefüllt wird in CSS-px, verglichen wird in Bildpixeln: Zielhöhe und Oberkante sind gebrochen, das Bild rundet je nach Lage anders (Handlungsbedarf
+          // bei 430 px: 644.84 px hoch, Oberkante 3397.75 und 3308.02, Bilder 1292 und 1290 px). Ein kürzerer Zustand bekommt die Differenz und wird neu aufgenommen.
+          const zuschlag = new Map();
+          for (let runde = 0; ; runde++) {
+            const eintraege = [];
+            for (const z of a.zustaende) {
+              const el = await laden(page, instanzen[z.szene], sprache, z, a.sel);
+              await el.evaluate((e, h) => {
+                const ist = e.getBoundingClientRect().height;
+                if (ist < h) e.style.paddingBottom = `${parseFloat(getComputedStyle(e).paddingBottom) + h - ist}px`;
+              }, hoehe + (zuschlag.get(z.zustand) ?? 0));
+              const datei = `${a.id}--${z.zustand}--${sprache}-${modus}-${breite}.png`;
+              // Element mit eigener Fläche (Karte, Zone): alles dahinter transparent (Seite und umgebende Zone), sonst stünde deren
+              // Grund in den Ecken ausserhalb der Rundung und als zweite Kante um die Karte auf der Website
+              const eigen = await el.evaluate((e) => {
+                const ja = getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)';
+                if (ja) for (let x = e.parentElement; x; x = x.parentElement) x.style.setProperty('background', 'transparent', 'important');
+                return ja;
               });
-            }, a.zeilen) : undefined;
-            manifest.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei,
-                            pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: a.zustaende.length > 1, ...(ziel && { ziel }), ...(zeilen && { zeilen }),
-                            ...(reihe && { reihe }) });
+              const px = pngMasse(await el.screenshot({ path: join(AUS, datei), animations: 'disabled', omitBackground: eigen }));
+              // Klickpunkt: Mitte des Elements oder 14 px vor seinem rechten Rand (dort sitzt der Aufklapper)
+              const ziel = z.ziel ? await el.evaluate((e, { sel, an }) => {
+                const t = e.matches(sel) ? e : e.querySelector(sel);
+                if (!t) return null;
+                const a = e.getBoundingClientRect(), b = t.getBoundingClientRect();
+                const x = an === 'rechts' ? b.right - 14 : b.left + b.width / 2;
+                return { x: +((x - a.left) / a.width).toFixed(4), y: +((b.top + b.height / 2 - a.top) / a.height).toFixed(4) };
+              }, z.ziel) : undefined;
+              if (z.ziel && !ziel) throw new Error(`${datei}: Ziel ${z.ziel.sel} nicht gefunden`);
+              // erste Reihe des Rasters in CSS-px ab Oberkante des Elements; das Ziel dann als Anteil der Reihe, nicht des Elements
+              const reihe = a.reihe ? await el.evaluate((e, sel) => {
+                const s = e.getBoundingClientRect(), zellen = [...e.querySelectorAll(':scope > .hraster > div')].map((d) => d.getBoundingClientRect());
+                const oben = zellen[0].top, unten = Math.max(...zellen.filter((r) => Math.abs(r.top - oben) < 1).map((r) => r.bottom));
+                const b = e.querySelector(sel).getBoundingClientRect();
+                return { y: +(oben - s.top).toFixed(2), h: +(unten - oben).toFixed(2), breite: +s.width.toFixed(2),
+                         ziel: { x: +((b.right - 14 - s.left) / s.width).toFixed(4), y: +((b.top + b.height / 2 - oben) / (unten - oben)).toFixed(4) } };
+              }, z.ziel.sel) : undefined;
+              // Zeilen (Dienstliste): Unterkante jeder Zeile und Mitte ihres Statuspunkts als Anteil des Ausschnitts
+              const zeilen = a.zeilen ? await el.evaluate((e, sel) => {
+                const a = e.getBoundingClientRect();
+                return [...e.querySelectorAll(sel)].map((s) => {
+                  const b = s.getBoundingClientRect(), p = s.querySelector('.punkt').getBoundingClientRect();
+                  return { unten: +((b.bottom - a.top) / a.height).toFixed(4), x: +((p.left + p.width / 2 - a.left) / a.width).toFixed(4), y: +((p.top + p.height / 2 - a.top) / a.height).toFixed(4) };
+                });
+              }, a.zeilen) : undefined;
+              eintraege.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei,
+                              pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: a.zustaende.length > 1, ...(ziel && { ziel }), ...(zeilen && { zeilen }),
+                              ...(reihe && { reihe }) });
+            }
+            const hoechste = Math.max(...eintraege.map((m) => m.pixel_hoehe));
+            const kuerzere = eintraege.filter((m) => m.pixel_hoehe < hoechste);
+            if (!kuerzere.length || runde === 2) { manifest.push(...eintraege); break; }   // nach zwei Korrekturen meldet die Selbstprüfung unten
+            for (const m of kuerzere) zuschlag.set(m.zustand, (zuschlag.get(m.zustand) ?? 0) + (hoechste - m.pixel_hoehe) / 2);   // deviceScaleFactor 2
           }
         }
         await ctx.close();

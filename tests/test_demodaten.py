@@ -113,10 +113,23 @@ assert len(s["dienste"]) == 5 and any(t["status"] == "activating" for d in s["di
 assert any(not d["timer"] for d in s["dienste"]) and s["zustand"]["pakete_quellen"] == {"Docker CE:trixie": 1}
 assert s["zustand"]["unattended_upgrades"] and not s["zustand"]["neustart_noetig"]
 # Jeder Dienstlink trägt seinen eigenen Port aus der serve-Liste der Karte «Installed» (05.11.2026), in beiden Szenen.
-for szene in ("busy", "ruhig"):
-    sz = json.loads((tmp / szene / "server.json").read_text())
+def ports_pruefen(sz):
     ports = [urlparse(d["link"]).port for d in sz["dienste"]]
-    assert None not in ports and len(set(ports)) == len(ports) and set(ports) <= set(sz["installiert"]["serve_ports"]), (szene, ports, sz["installiert"]["serve_ports"])
+    assert None not in ports and len(set(ports)) == len(ports) and set(ports) <= set(sz["installiert"]["serve_ports"]), (ports, sz["installiert"]["serve_ports"])
+
+szenen = {szene: json.loads((tmp / szene / "server.json").read_text()) for szene in ("busy", "ruhig")}
+for sz in szenen.values():
+    ports_pruefen(sz)
+# Gegenprobe: doppelter, fremder und fehlender Port machen die Prüfung je rot, dieselben Daten ohne Eingriff bleiben grün.
+for was, link in (("doppelt", szenen["busy"]["dienste"][0]["link"]), ("fremd", "https://x.example:9999/"), ("fehlt", "https://x.example/")):
+    kaputt = json.loads(json.dumps(szenen["busy"]))
+    kaputt["dienste"][1]["link"] = link
+    try:
+        ports_pruefen(kaputt)
+    except AssertionError:
+        continue
+    raise SystemExit(f"Port {was} wurde nicht erkannt")
+ports_pruefen(szenen["busy"])
 
 
 def python(code, **env):
