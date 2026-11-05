@@ -9,6 +9,7 @@ import sys
 import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 REPO = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("demodaten", REPO / "demo" / "demodaten.py")
@@ -111,6 +112,11 @@ assert "Debian GNU/Linux 13" in s["maschine"]["os"] and s["maschine"]["vcores"] 
 assert len(s["dienste"]) == 5 and any(t["status"] == "activating" for d in s["dienste"] for t in d["timer"])
 assert any(not d["timer"] for d in s["dienste"]) and s["zustand"]["pakete_quellen"] == {"Docker CE:trixie": 1}
 assert s["zustand"]["unattended_upgrades"] and not s["zustand"]["neustart_noetig"]
+# Jeder Dienstlink trägt seinen eigenen Port aus der serve-Liste der Karte «Installed» (05.11.2026), in beiden Szenen.
+for szene in ("busy", "ruhig"):
+    sz = json.loads((tmp / szene / "server.json").read_text())
+    ports = [urlparse(d["link"]).port for d in sz["dienste"]]
+    assert None not in ports and len(set(ports)) == len(ports) and set(ports) <= set(sz["installiert"]["serve_ports"]), (szene, ports, sz["installiert"]["serve_ports"])
 
 
 def python(code, **env):
