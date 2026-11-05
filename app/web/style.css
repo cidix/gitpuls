@@ -15,7 +15,7 @@
    mit preserveAspectRatio="none" gestreckt, deshalb steht die Beschriftung als HTML daneben. */
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--txt); font-family: var(--font); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
-body { padding: var(--s5) var(--s4) var(--s8); max-width: 84rem; margin: 0 auto; }
+body { padding: var(--s5) var(--s4) var(--s8); max-width: 112.5rem; margin: 0 auto; }
 main { display: grid; gap: var(--s8); }
 main > *, .zone > *, .card > *, .tile > * { min-width: 0; }
 a { color: var(--eis); text-decoration: none; }
@@ -130,7 +130,7 @@ button:active { transform: scale(.985); }
 /* Serverzone: Lage und Dienste (Test 27.09.2026) ohne eigene Fläche direkt auf dem Zonengrund wie der Kopf der GitHub-Zone, auf
    denselben Spaltenkanten wie die Fussblöcke darunter: dieselbe Spaltenregel wie .fuss, damit beide bei derselben Breite umbrechen
    (vorher 1fr 1fr bis 820 px, .fuss brach schon bei rund 920 px auf eine Spalte). */
-.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); padding-top: var(--s4); }
+.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(min(28.5rem, 100%), calc((100% - 2 * var(--s4)) / 3 + 1px)), 1fr)); gap: var(--s4); padding-top: var(--s4); }
 .zone.server .tile { min-width: 0; }
 .tile.lage { display: grid; gap: var(--lage-abstand); align-content: start; }
 /* In der Serverkachel kann der Satz mit vielen Abweichungen über sechs Zeilen laufen; dort balanciert Chrome nicht mehr (gemessen
@@ -184,13 +184,14 @@ details.dienst summary a { font-weight: 600; }
    414 px bereit, die Höhe bleibt bei zwei Zeilen. min(28.5rem, 100%) klemmt die Mindestbreite an den
    Container: ohne das erzwang die Spur bei 430 px die Mindestbreite auf 357 px Platz, und die Seite scrollte
    seitwärts. */
-.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); }
+.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(max(min(28.5rem, 100%), calc((100% - 2 * var(--s4)) / 3 + 1px)), 1fr)); gap: var(--s4); }
 /* Wie die .card der Vorlage gegen die Zonenfläche (Lage und Dienste darüber stehen seit 27.09.2026 ohne Fläche):
    eigene Fläche, Rand, Radius, Innenabstand. Im Raster stehen sie damit von selbst auf einer
    Grundlinie und sind gleich hoch. */
 .meta { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: var(--s4);
         font-size: .8rem; letter-spacing: .01em; color: var(--lbl); display: grid; gap: .2rem; line-height: 1.4; align-content: start; font-variant-numeric: tabular-nums; }
-.meta b { color: var(--txt); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .02em; margin-bottom: .2rem; }
+/* Kartentitel und Titel der Arten im Handlungsbedarf im Format von .hbtitel (12.8 px, 600, normale Schreibung, Textfarbe; gemessen 05.11.2026) */
+.meta b { color: var(--txt); font-weight: 600; letter-spacing: normal; margin-bottom: .2rem; }
 /* Feste Beschriftungsspalte und linksbündige Werte statt rechtsbündig. Belegt an den gemessenen
    Zeilenlängen: die Werte reichen von 28 px ("5.5.1") bis 286 px, ein Zehnfaches. Rechtsbündig lag ein
    kurzer Wert bis zu 270 px von seiner Beschriftung entfernt, der Bezug zwischen beiden riss. Links
@@ -544,7 +545,8 @@ details[open] > summary::before { transform: rotate(45deg); }
   details.dienst summary { font-size: .8rem; }
   .pwert { grid-template-columns: 4ch auto; column-gap: .3rem; } .prow .mikro, .pbetreff, .pbefund, .pgruppe .pkname, .pgruppe .pkmikro, .pgruppe .pkbetreff { display: none; }
   .pdetail { grid-template-columns: minmax(0, 1fr); row-gap: var(--s5); } }
-/* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: vier Spalten, dann drei, zwei, eine. */
+/* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: höchstens zwei Spalten (die dritte Spur ist seit der Inhaltsbreite
+   von 1800 px gesperrt, 05.11.2026), dann eine. */
 @media (max-width: 820px) { .tiles3, .nums, .hraster, .rraster { grid-template-columns: 1fr; } }
 /* Bei schmaler Breite wächst die Beschriftungsspalte wieder mit dem Wort: der Innenabstand der Kachel
    kostet 32 px, und mit fester 8-rem-Spalte brachen dort vier Werte um. Mit auto passt jede Zeile, weil
@@ -596,7 +598,7 @@ details[open] > summary::before { transform: rotate(45deg); }
 .handlung > .hraster > div { min-width: 0; }
 .handlung > .hraster > div:has(> .hraster) { grid-column: 1 / -1; }
 .handlung .hbart + .hbliste { margin-top: var(--s3); }
-.hbart { margin: 0; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; line-height: 1.35; color: var(--txt); }
+.hbart { margin: 0; font-size: .8rem; font-weight: 600; line-height: 1.35; color: var(--txt); }
 /* Seit 03.10.2026 eine Liste: je Eintrag der Punkt in der ersten Spalte, Repo-Zeile und Unterzeilen in der zweiten (hängender Einzug),
    --s4 zwischen den Einträgen, .2rem zwischen den Unterzeilen wie in der Aufteilung der Heute-Kachel. Jede Zeile einzeilig mit Ellipse,
    ein Commit-Betreff (.hbzwei) höchstens zwei Zeilen. */

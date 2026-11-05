@@ -567,7 +567,9 @@ assert not any(d in " ".join(regeln[".pliste"]) for d in ("background", "border"
 assert ".tiles3, .nums, .hraster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s4); }" in css, "eine Regel für Kacheln und Kopfreihe"
 assert "@media (max-width: 820px) { .tiles3, .nums, .hraster, .rraster { grid-template-columns: 1fr; } }" in css
 # Serverzone (27.09.2026): Lage und Dienste ohne Fläche, auf der Spaltenregel der Fussblöcke; die Fussblöcke behalten ihre Kacheln.
-assert regeln[".zwei"][0].count("repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr))") == 1 and regeln[".fuss"][0].count("repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr))") == 1
+# Seit 05.11.2026 (Inhaltsbreite 1800 px) höchstens zwei Spalten: die dritte Spur ist gesperrt, unter 28.5rem bleibt der Umbruch wie vorher.
+SPALTEN = "repeat(auto-fit, minmax(max(min(28.5rem, 100%), calc((100% - 2 * var(--s4)) / 3 + 1px)), 1fr))"
+assert regeln[".zwei"][0].count(SPALTEN) == 1 and regeln[".fuss"][0].count(SPALTEN) == 1
 assert "background" not in " ".join(regeln[".zone.server .tile"]) and "border" not in " ".join(regeln[".zone.server .tile"]) and "background: var(--card)" in regeln[".meta"][0]
 # Kopfspalte 3 (26.09.2026): Serie und Repos untereinander in einer Spalte, beide Zahlen über dieselbe Regel .n b (gleiche Grösse).
 assert "grid-template-columns: minmax(0, 1fr);" in " ".join(regeln[".npaar"]) and "repeat(2" not in " ".join(regeln[".npaar"]) and "min-width: 0" in " ".join(regeln[".npaar"]), regeln.get(".npaar")
@@ -3069,7 +3071,7 @@ assert css_.count(kopf_und_zeile) == 2 and "@media (max-width: 500px) { " + kopf
 sk_ = web.skript()
 assert all(f"['--d{a_}','{b_}']" in sk_ for a_, b_ in (("name", ".dname,.pname"), ("port", ".dport"), ("zustand", ".dzustand"), ("zuletzt", ".pkalter,.dzeit"))), sk_[-900:]
 assert "if(dienste){dienstSpuren();matchMedia('(max-width: 700px)')" in sk_, "ohne Dienste kein Fehler, an der Grenze der Schriftgrösse neu gemessen"
-assert "minmax(min(28.5rem, 100%), 1fr)" in css_, "die zwei Kacheln stapeln, bevor die sechs Spuren mit --s6 nicht mehr passen"
+assert "minmax(max(min(28.5rem, 100%), " in css_, "die zwei Kacheln stapeln, bevor die sechs Spuren mit --s6 nicht mehr passen"
 # Die Zustandsspur trägt das längste Zustandswort beider Sprachen, «nicht gemessen», gemessen 7.32em, mit Reserve in em am Text selbst; die Rückfallspur hat dasselbe Mass (8em bei .85rem).
 worte_ = [q.T[k] for q in (web.texte_de, web.texte_en) for k in ("dn.w_sauber", "dn.w_laeuft", "dn.w_kein_lauf", "dn.w_ohne_timer", "dn.w_fehler", "dn.nicht_gemessen")]
 assert max(worte_, key=len) == "nicht gemessen" == web.texte_de.T["dn.nicht_gemessen"], worte_
