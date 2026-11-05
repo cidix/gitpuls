@@ -4,16 +4,18 @@
 // Aufnahme aus dem Selektor des Elements; bei 1100 px nur dunkel und nur die Einzelausschnitte (AUSSCHNITTE), die die Website in
 // nahezu Originalgrösse zeigt. Der Ausschnitt kommt je Aufnahme aus dem Selektor des Elements, nie aus festen Koordinaten. Zustände eines Paars (busy und ruhig, zu und auf, die zwei
 // Stufen eines Umschalters) bekommen exakt dieselbe Grösse: das kleinere Element wird unten bis zur Höhe des grösseren aufgefüllt,
-// damit die Website die zwei Bilder überblenden kann. Ausgabe nach demo/aufnahmen/ (ignoriert): PNG, manifest.json, index.html.
+// damit die Website die zwei Bilder überblenden kann. Ausgabe nach demo/aufnahmen/ (ignoriert): PNG, manifest.json, index.html, readme/.
+// Sie entsteht in einem Arbeitsverzeichnis daneben und ersetzt den alten Bestand erst, wenn die Selbstprüfung (demo/pruefung.mjs) besteht.
 //
 //   cd demo && npm install && node aufnahmen.mjs
 import { chromium } from 'playwright';
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pngMasse, pruefen } from './pruefung.mjs';
 
 const DEMO = dirname(fileURLToPath(import.meta.url));
 const REPO = dirname(DEMO);
@@ -122,9 +124,6 @@ async function starten(ordner) {
   throw new Error(`Instanz auf ${ordner} antwortet nicht`);
 }
 
-function pngMasse(buffer) {   // IHDR: Breite und Höhe ab Byte 16
-  return { breite: buffer.readUInt32BE(16), hoehe: buffer.readUInt32BE(20) };
-}
 
 async function laden(page, instanz, sprache, z, sel) {
   await page.goto(`${instanz.adresse}/?lang=${sprache}`, { waitUntil: 'load' });
@@ -137,6 +136,7 @@ async function laden(page, instanz, sprache, z, sel) {
 }
 
 const daten = mkdtempSync(join(tmpdir(), 'gitpuls-demo-'));
+let ziel = null;   // Arbeitsverzeichnis der neuen Aufnahmen, bis zum Tausch
 const instanzen = {};
 const browser = await chromium.launch();
 try {
@@ -144,8 +144,9 @@ try {
     execFileSync(PY, [join(DEMO, 'demodaten.py'), join(daten, szene), '--szene', szene], { stdio: 'inherit' });
     instanzen[szene] = await starten(join(daten, szene));
   }
-  mkdirSync(AUS, { recursive: true });
-  for (const f of readdirSync(AUS)) if (f.endsWith('.png')) rmSync(join(AUS, f));
+  // Alles entsteht in einem frischen Arbeitsverzeichnis neben AUS (gleiches Dateisystem); erst nach bestandener Selbstprüfung tauscht
+  // es gegen den bisherigen Bestand samt README-Ausgabe. Jeder Abbruch davor lässt demo/aufnahmen unberührt, finally verwirft es.
+  ziel = mkdtempSync(join(DEMO, '.aufnahmen-neu-'));
   const manifest = [];
   for (const [sprache, locale] of Object.entries(SPRACHEN)) {
     for (const modus of MODI) {
@@ -163,7 +164,7 @@ try {
             await laden(page, instanzen[z.szene], sprache, z, a.seite);
             const unten = await page.locator(a.seite).first().evaluate((e) => e.getBoundingClientRect().bottom + scrollY + 24);
             const datei = `${a.id}--${z.zustand}--${sprache}-${modus}-${breite}.png`;
-            const px = pngMasse(await page.screenshot({ path: join(AUS, datei), clip: { x: 0, y: 0, width: breite, height: Math.ceil(unten) }, fullPage: true, animations: 'disabled' }));
+            const px = pngMasse(await page.screenshot({ path: join(ziel, datei), clip: { x: 0, y: 0, width: breite, height: Math.ceil(unten) }, fullPage: true, animations: 'disabled' }));
             manifest.push({ id: a.id, gruppe: a.gruppe, szene: z.szene, zustand: z.zustand, sprache, modus, breite, datei, pixel_breite: px.breite, pixel_hoehe: px.hoehe, paar: false });
             continue;
           }
@@ -189,7 +190,7 @@ try {
                 if (ja) for (let x = e.parentElement; x; x = x.parentElement) x.style.setProperty('background', 'transparent', 'important');
                 return ja;
               });
-              const px = pngMasse(await el.screenshot({ path: join(AUS, datei), animations: 'disabled', omitBackground: eigen }));
+              const px = pngMasse(await el.screenshot({ path: join(ziel, datei), animations: 'disabled', omitBackground: eigen }));
               // Klickpunkt: Mitte des Elements oder 14 px vor seinem rechten Rand (dort sitzt der Aufklapper)
               const ziel = z.ziel ? await el.evaluate((e, { sel, an }) => {
                 const t = e.matches(sel) ? e : e.querySelector(sel);
@@ -233,27 +234,30 @@ try {
       }
     }
   }
-  await readmeAufnahmen(browser, instanzen.busy);
-  // Selbstprüfung: die Zustände eines Paars haben je Sprache, Modus und Breite dieselben Pixelmasse.
-  const ab = [];
-  const paare = Map.groupBy(manifest.filter((m) => m.paar), (m) => `${m.id} ${m.sprache} ${m.modus} ${m.breite}`);
-  for (const [k, v] of paare) if (new Set(v.map((m) => `${m.pixel_breite}x${m.pixel_hoehe}`)).size > 1) ab.push(`${k}: ${v.map((m) => `${m.zustand} ${m.pixel_breite}x${m.pixel_hoehe}`).join(', ')}`);
-  writeFileSync(join(AUS, 'manifest.json'), JSON.stringify(manifest, null, 1));
-  writeFileSync(join(AUS, 'index.html'), kontaktbogen(manifest));
-  console.log(`${manifest.length} Aufnahmen, ${paare.size} Paare, nach ${AUS}`);
-  if (ab.length) { console.error(`Paare mit ungleichen Massen:\n${ab.join('\n')}`); process.exitCode = 1; }
+  await readmeAufnahmen(browser, instanzen.busy, join(ziel, 'readme'));
+  // Selbstprüfung vor dem Tausch: bricht ab, und der bisherige Bestand bleibt
+  const ab = pruefen(manifest, ziel);
+  if (ab.length) throw new Error(`Aufnahmen nicht übernommen, ${ab.length} Befunde:\n${ab.join('\n')}`);
+  writeFileSync(join(ziel, 'manifest.json'), JSON.stringify(manifest, null, 1));
+  writeFileSync(join(ziel, 'index.html'), kontaktbogen(manifest));
+  const alt = `${ziel}-alt`;
+  if (existsSync(AUS)) renameSync(AUS, alt);
+  try { renameSync(ziel, AUS); } catch (e) { if (existsSync(alt)) renameSync(alt, AUS); throw e; }
+  ziel = null;
+  rmSync(alt, { recursive: true, force: true });
+  console.log(`${manifest.length} Aufnahmen nach ${AUS}`);
 } finally {
   await browser.close();
   for (const i of Object.values(instanzen)) i.prozess.kill();
   rmSync(daten, { recursive: true, force: true });
+  if (ziel) rmSync(ziel, { recursive: true, force: true });   // nicht getauscht: Arbeitsverzeichnis verwerfen, alter Bestand bleibt
 }
 
 // Bilder für das README (11.10.2026): englisch, Szene busy, 1280 px Viewport, jedes auf denselben waagrechten Ausschnitt (main) zugeschnitten,
 // damit alle dieselbe Breite haben. Handy und «hell und dunkel» werden im Browser aus echten Aufnahmen zusammengesetzt. Ausgabe nach
 // demo/aufnahmen/readme/ als PNG in voller Qualität; verkleinert und nach docs/screenshots/ übernommen werden sie von Hand (README, Development).
-async function readmeAufnahmen(browser, instanz) {
-  const RM = join(AUS, 'readme'), B = 1280, DSF = 1.25, RAND = 16;
-  rmSync(RM, { recursive: true, force: true });
+async function readmeAufnahmen(browser, instanz, RM) {
+  const B = 1280, DSF = 1.25, RAND = 16;
   mkdirSync(RM, { recursive: true });
   const kontext = (modus, mehr = {}) => browser.newContext({ viewport: { width: B, height: 900 }, deviceScaleFactor: DSF, locale: 'en-US',
     reducedMotion: 'reduce', colorScheme: modus === 'dunkel' ? 'dark' : 'light', ...mehr }).then(async (ctx) => {
