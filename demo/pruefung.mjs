@@ -1,6 +1,16 @@
 // Selbstprüfung der Aufnahmen (demo/aufnahmen.mjs), ohne Browser testbar: node --test demo/pruefung.test.mjs
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+
+/** Reste früherer Läufe neben aus (demo/aufnahmen): fehlt aus und liegt die zurückgestellte alte Fassung (.aufnahmen-neu-*-alt)
+ *  noch da, kommt sie zuerst zurück; danach werden nur die eigenen Arbeitsordner .aufnahmen-neu-* entfernt, nichts anderes. */
+export function aufraeumen(aus) {
+  const ordner = dirname(aus), praefix = `.${basename(aus)}-neu-`;
+  const reste = readdirSync(ordner).filter((n) => n.startsWith(praefix));
+  const alt = reste.filter((n) => n.endsWith('-alt'));
+  if (!existsSync(aus) && alt.length) renameSync(join(ordner, alt[0]), aus);
+  for (const n of reste) rmSync(join(ordner, n), { recursive: true, force: true });
+}
 
 export function pngMasse(buffer) {   // IHDR: Breite und Höhe ab Byte 16
   return { breite: buffer.readUInt32BE(16), hoehe: buffer.readUInt32BE(20) };

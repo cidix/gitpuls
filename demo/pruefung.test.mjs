@@ -33,3 +33,24 @@ test('Gegenprobe: PNG passt nicht zum Manifest, Datei fehlt, Klickpunkt ausserha
   assert.match(ab, /hell-1100\.png: Datei fehlt/);
   assert.match(ab, /dunkel-1100\.png: ziel ausserhalb/);
 });
+
+test('aufraeumen: fehlt demo/aufnahmen, kommt die alte Fassung zurück; nur eigene Reste werden entfernt', async () => {
+  const { mkdirSync, readdirSync, readFileSync } = await import('node:fs');
+  const { aufraeumen } = await import('./pruefung.mjs');
+  const wurzel = mkdtempSync(join(tmpdir(), 'aufraeumen-')), aus = join(wurzel, 'aufnahmen');
+  mkdirSync(join(wurzel, '.aufnahmen-neu-abc-alt'));
+  writeFileSync(join(wurzel, '.aufnahmen-neu-abc-alt', 'manifest.json'), 'alt');
+  mkdirSync(join(wurzel, '.aufnahmen-neu-xyz'));
+  mkdirSync(join(wurzel, 'node_modules'));
+  writeFileSync(join(wurzel, 'aufnahmen.mjs'), '');
+  aufraeumen(aus);
+  assert.equal(readFileSync(join(aus, 'manifest.json'), 'utf8'), 'alt');
+  assert.deepEqual(readdirSync(wurzel).sort(), ['aufnahmen', 'aufnahmen.mjs', 'node_modules']);
+  // Gegenprobe: aufnahmen vorhanden, eine übrige alte Fassung wird entfernt, nicht zurückgeholt
+  mkdirSync(join(wurzel, '.aufnahmen-neu-def-alt'));
+  writeFileSync(join(wurzel, '.aufnahmen-neu-def-alt', 'manifest.json'), 'älter');
+  aufraeumen(aus);
+  assert.equal(readFileSync(join(aus, 'manifest.json'), 'utf8'), 'alt');
+  assert.deepEqual(readdirSync(wurzel).sort(), ['aufnahmen', 'aufnahmen.mjs', 'node_modules']);
+  rmSync(wurzel, { recursive: true });
+});

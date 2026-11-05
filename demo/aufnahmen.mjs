@@ -16,7 +16,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pngMasse, pruefen } from './pruefung.mjs';
+import { aufraeumen, pngMasse, pruefen } from './pruefung.mjs';
 
 const DEMO = dirname(fileURLToPath(import.meta.url));
 const REPO = dirname(DEMO);
@@ -140,6 +140,15 @@ const daten = mkdtempSync(join(tmpdir(), 'gitpuls-demo-'));
 let ziel = null;   // Arbeitsverzeichnis der neuen Aufnahmen, bis zum Tausch
 const instanzen = {};
 const browser = await chromium.launch();
+// SIGINT und SIGTERM: Instanzen, Browser, Demodaten und der eigene Arbeitsordner weg, der alte Bestand bleibt (ein Abbruch zwischen
+// den zwei Umbenennungen beim Tausch heilt aufraeumen() beim nächsten Start)
+for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) process.on(signal, async () => {
+  for (const i of Object.values(instanzen)) i.prozess.kill();
+  if (ziel) rmSync(ziel, { recursive: true, force: true });
+  rmSync(daten, { recursive: true, force: true });
+  await browser.close().catch(() => {});
+  process.exit(code);
+});
 try {
   for (const szene of ['busy', 'ruhig']) {
     execFileSync(PY, [join(DEMO, 'demodaten.py'), join(daten, szene), '--szene', szene], { stdio: 'inherit' });
@@ -147,6 +156,7 @@ try {
   }
   // Alles entsteht in einem frischen Arbeitsverzeichnis neben AUS (gleiches Dateisystem); erst nach bestandener Selbstprüfung tauscht
   // es gegen den bisherigen Bestand samt README-Ausgabe. Jeder Abbruch davor lässt demo/aufnahmen unberührt, finally verwirft es.
+  aufraeumen(AUS);   // Reste früherer Abbrüche: alte Fassung zurückholen, eigene Arbeitsordner entfernen
   ziel = mkdtempSync(join(DEMO, '.aufnahmen-neu-'));
   const manifest = [];
   for (const [sprache, locale] of Object.entries(SPRACHEN)) {
