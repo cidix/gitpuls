@@ -6,6 +6,15 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-05
+
+### Changed
+
+- Values use full contrast: black in light mode, white in dark mode.
+- Service rows in the server zone show service, port, status and last run in aligned columns with a header; the purpose is in the expanded detail.
+- Update channels carry readable names, also for apt lines with an empty trailing bracket.
+- Time zone tests use built-in rules, independent of the host's time zone data.
+
 ## [2.2.0] - 2026-10-27
 
 ### Added
@@ -143,7 +152,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/cidix/gitpuls/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cidix/gitpuls/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cidix/gitpuls/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/cidix/gitpuls/compare/v1.1.0...v2.0.0
