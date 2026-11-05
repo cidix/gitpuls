@@ -158,7 +158,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/cidix/gitpuls/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/cidix/gitpuls/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/cidix/gitpuls/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/cidix/gitpuls/compare/v2.0.0...v2.1.0
