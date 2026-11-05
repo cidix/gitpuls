@@ -1,7 +1,7 @@
-// Aufnahmen der Oberfläche für die Landingpage gitpuls.com (09.10.2026, Ausschnitte bei 1100 px seit Runde 2). Erzeugt mit demo/demodaten.py beide Szenen in einem
+// Aufnahmen der Oberfläche für die Landingpage gitpuls.com (09.10.2026; Ausschnitte und Hero seit 05.11.2026 bei AUSSCHNITT = 1800 px, wo die App ihre volle Inhaltsbreite erreicht). Erzeugt mit demo/demodaten.py beide Szenen in einem
 // temporären Ordner, startet je Szene eine lokale Instanz (app/web.py, freier Port auf 127.0.0.1) und nimmt mit Playwright in
 // Chromium auf: Englisch und Deutsch (?lang), hell und dunkel, 1440 und 430 px, deviceScaleFactor 2. Der Ausschnitt kommt je
-// Aufnahme aus dem Selektor des Elements; bei 1100 px nur dunkel und nur die Einzelausschnitte (AUSSCHNITTE), die die Website in
+// Aufnahme aus dem Selektor des Elements; bei AUSSCHNITT nur dunkel und nur die Einzelausschnitte (AUSSCHNITTE), die die Website in
 // nahezu Originalgrösse zeigt. Der Ausschnitt kommt je Aufnahme aus dem Selektor des Elements, nie aus festen Koordinaten. Zustände eines Paars (busy und ruhig, zu und auf, die zwei
 // Stufen eines Umschalters) bekommen exakt dieselbe Grösse: das kleinere Element wird unten bis zur Höhe des grösseren aufgefüllt,
 // damit die Website die zwei Bilder überblenden kann. Ausgabe nach demo/aufnahmen/ (ignoriert): PNG, manifest.json, index.html.
@@ -21,7 +21,8 @@ const AUS = join(DEMO, 'aufnahmen');
 const PY = existsSync(join(REPO, '.venv/bin/python')) ? join(REPO, '.venv/bin/python') : 'python3';
 const SPRACHEN = { en: 'en-US', de: 'de-DE' };   // Accept-Language, daraus die Schreibweise der Zahlen (app/format.py)
 const MODI = ['hell', 'dunkel'];
-const BREITEN = [1440, 430, 1100];
+const AUSSCHNITT = 1800;   // Viewport, in dem die Inhaltsbreite der App (112.5rem) voll steht
+const BREITEN = [1440, 430, AUSSCHNITT];
 
 // Je Aufnahme ein Selektor und ihre Zustände. «wahl» klickt eine Stufe eines Umschalters, «oeffnen» klappt ein <details> auf.
 const AUFNAHMEN = [
@@ -42,13 +43,13 @@ const AUFNAHMEN = [
   { id: 'dienst', gruppe: 'Dienst zu und aufgeklappt', sel: 'details.dienst',
     zustaende: [{ szene: 'busy', zustand: 'zu' }, { szene: 'busy', zustand: 'auf', oeffnen: 'details.dienst' }] },
   { id: 'rueckblick', gruppe: 'Rückblick', sel: 'section.card.rueckblick', zustaende: [{ szene: 'busy', zustand: '30-tage' }] },
-  // die Seite von oben am Stück, Serverzone und GitHub-Zone bis unter die Kacheln (Hero der Website, Runde 5); nur 1440 und dunkel
-  { id: 'seite', gruppe: 'Seite oben bis zu den Kacheln', seite: '.tiles3', zustaende: [{ szene: 'busy', zustand: 'oben' }] },
 ];
 
-// Einzelausschnitte bei 1100 px Viewport, nur dunkel (Website, Runde 2). «ziel» ist das echte Bedienelement, das zum anderen
+// Einzelausschnitte bei AUSSCHNITT, nur dunkel (Website, Runde 2). «ziel» ist das echte Bedienelement, das zum anderen
 // Zustand führt; das Manifest trägt seinen Klickpunkt als Anteil von Breite und Höhe des Ausschnitts (Zeiger auf der Website).
 const AUSSCHNITTE = [
+  // die Seite von oben am Stück, Serverzone und GitHub-Zone bis unter die Kacheln (Hero der Website, Runde 5); nur dunkel
+  { id: 'seite', gruppe: 'Seite oben bis zu den Kacheln', seite: '.tiles3', zustaende: [{ szene: 'busy', zustand: 'oben' }] },
   { id: 'github', gruppe: 'GitHub-Zone ganz', sel: 'section.zone.github', zustaende: [{ szene: 'busy', zustand: 'ganz' }], hell: true },
   { id: 'server', gruppe: 'Serverzone', sel: 'section.zone.server', zustaende: [{ szene: 'busy', zustand: 'ganz' }], hell: true },
   { id: 'github-kopf', gruppe: 'GitHub-Zonenkopf', sel: 'section.zone.github > .zonenkopf', zustaende: [{ szene: 'busy', zustand: 'kopf' }] },
@@ -60,9 +61,9 @@ const AUSSCHNITTE = [
   { id: 'dienst', gruppe: 'Dienst zu und aufgeklappt', sel: 'details.dienst',
     zustaende: [{ szene: 'busy', zustand: 'zu', ziel: { sel: 'summary', an: 'mitte' } },
                 { szene: 'busy', zustand: 'auf', oeffnen: 'details.dienst', ziel: { sel: 'summary', an: 'mitte' } }] },
-  // die ganze Serverzone zu und mit aufgeklappter Zeile atlas-api, nur dunkel bei 1100 und 430 px (Website, Abschnitt Server);
+  // die ganze Serverzone zu und mit aufgeklappter Zeile atlas-api, nur dunkel bei AUSSCHNITT und 430 px (Website, Abschnitt Server);
   // «spalte» misst den Lagesatz neben der Dienstliste als Anteil der Breite: er bleibt stehen, wenn die Zeile aufklappt
-  { id: 'server-klapp', gruppe: 'Serverzone mit Dienst zu und aufgeklappt', sel: 'section.zone.server', spalte: '.tile.lage', nur: [1100, 430],
+  { id: 'server-klapp', gruppe: 'Serverzone mit Dienst zu und aufgeklappt', sel: 'section.zone.server', spalte: '.tile.lage', nur: [AUSSCHNITT, 430],
     zustaende: [{ szene: 'busy', zustand: 'zu', ziel: { sel: 'details.dienst > summary', an: 'mitte' } },
                 { szene: 'busy', zustand: 'auf', oeffnen: 'details.dienst', ziel: { sel: 'details.dienst > summary', an: 'mitte' } }] },
   { id: 'maschine', gruppe: 'Karte Maschine', sel: 'section.zone.server .fuss > .meta:nth-child(1)', zustaende: [{ szene: 'busy', zustand: 'karte' }] },
@@ -155,10 +156,10 @@ try {
         // Jeder Aufruf beginnt mit den Vorgaben: gemerkte Wahl der Umschalter weg, nur der Modus gesetzt.
         await ctx.addInitScript((m) => { try { localStorage.clear(); localStorage.setItem('gitpuls-modus', m); } catch (e) {} }, modus);
         const page = await ctx.newPage();
-        // bei 1100 px im Modus hell nur die ganzen Zonen (Vergleich hell und dunkel auf der Website)
-        for (const a of (breite === 1100 ? AUSSCHNITTE : AUFNAHMEN).filter((a) => (breite !== 1100 || modus === 'dunkel' || a.hell) && (!a.nur || (a.nur.includes(breite) && modus === 'dunkel')))) {
+        // bei AUSSCHNITT im Modus hell nur die ganzen Zonen (Vergleich hell und dunkel auf der Website)
+        for (const a of (breite === AUSSCHNITT ? AUSSCHNITTE : AUFNAHMEN).filter((a) => (breite !== AUSSCHNITT || modus === 'dunkel' || a.hell) && (!a.nur || (a.nur.includes(breite) && modus === 'dunkel')))) {
           if (a.seite) {
-            if (breite !== 1440 || modus !== 'dunkel') continue;
+            if (breite !== AUSSCHNITT || modus !== 'dunkel') continue;
             const z = a.zustaende[0];
             await laden(page, instanzen[z.szene], sprache, z, a.seite);
             const unten = await page.locator(a.seite).first().evaluate((e) => e.getBoundingClientRect().bottom + scrollY + 24);
