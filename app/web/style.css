@@ -15,7 +15,7 @@
    mit preserveAspectRatio="none" gestreckt, deshalb steht die Beschriftung als HTML daneben. */
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--txt); font-family: var(--font); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
-body { padding: var(--s5) var(--s4) var(--s8); max-width: 112.5rem; margin: 0 auto; }
+body { padding: var(--s5) var(--s4) var(--s8); max-width: 84rem; margin: 0 auto; }
 main { display: grid; gap: var(--s8); }
 main > *, .zone > *, .card > *, .tile > * { min-width: 0; }
 a { color: var(--eis); text-decoration: none; }
@@ -130,7 +130,7 @@ button:active { transform: scale(.985); }
 /* Serverzone: Lage und Dienste (Test 27.09.2026) ohne eigene Fläche direkt auf dem Zonengrund wie der Kopf der GitHub-Zone, auf
    denselben Spaltenkanten wie die Fussblöcke darunter: dieselbe Spaltenregel wie .fuss, damit beide bei derselben Breite umbrechen
    (vorher 1fr 1fr bis 820 px, .fuss brach schon bei rund 920 px auf eine Spalte). */
-.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(min(28.5rem, 100%), calc((100% - 2 * var(--s4)) / 3 + 1px)), 1fr)); gap: var(--s4); padding-top: var(--s4); }
+.zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); padding-top: var(--s4); }
 .zone.server .tile { min-width: 0; }
 .tile.lage { display: grid; gap: var(--lage-abstand); align-content: start; }
 /* In der Serverkachel kann der Satz mit vielen Abweichungen über sechs Zeilen laufen; dort balanciert Chrome nicht mehr (gemessen
@@ -184,7 +184,7 @@ details.dienst summary a { font-weight: 600; }
    414 px bereit, die Höhe bleibt bei zwei Zeilen. min(28.5rem, 100%) klemmt die Mindestbreite an den
    Container: ohne das erzwang die Spur bei 430 px die Mindestbreite auf 357 px Platz, und die Seite scrollte
    seitwärts. */
-.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(max(min(28.5rem, 100%), calc((100% - 2 * var(--s4)) / 3 + 1px)), 1fr)); gap: var(--s4); }
+.fuss { margin-top: var(--s4); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(28.5rem, 100%), 1fr)); gap: var(--s4); }
 /* Wie die .card der Vorlage gegen die Zonenfläche (Lage und Dienste darüber stehen seit 27.09.2026 ohne Fläche):
    eigene Fläche, Rand, Radius, Innenabstand. Im Raster stehen sie damit von selbst auf einer
    Grundlinie und sind gleich hoch. */
@@ -225,7 +225,8 @@ details.dienst summary a { font-weight: 600; }
    und die zwei Bezugszeilen gemeinsam leiser und kleiner. */
 /* Der Kacheltitel trägt die volle Textfarbe, nicht die gedämpfte: im Dunkelmodus stand er sonst
    leiser da als die Fliesstexte darunter, obwohl er die Kachel benennt. */
-.tile.kpi .lbl { font-weight: 600; letter-spacing: .04em; color: var(--txt); }
+/* Kacheltitel im Format von .hbtitel wie die Kartentitel (12.8 px, 600, normale Schreibung, Textfarbe; gemessen 05.11.2026) */
+.tile.kpi .lbl { font-size: .8rem; font-weight: 600; letter-spacing: normal; text-transform: none; color: var(--txt); }
 /* Heute-Kachel (seit 25.09.2026): die Aufteilung des Tages je Repo statt der Commitliste. Eine Zeile ist ein Link auf die
    Projektzeile: Name, Zahl, Anteilbalken gegen das grösste Repo des Tages (.fbalken, einfarbig), gedämpft «bis HH:MM».
    Subgrid: die Spalten gelten für alle Zeilen, der Name ist so breit wie der längste, höchstens 9rem, die Balkenspur
@@ -399,6 +400,8 @@ details.prow:first-child { border-top: none; }
 .pgruppe .pkw { font-size: .85rem; font-weight: 400; letter-spacing: 0; line-height: 1.4; }
 .pgruppe .pspalte { grid-column: 1; justify-self: end; font-size: .75rem; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
 .pgruppe.getrennt { margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--border); }
+/* der Gruppentitel «Ohne Commits diese Woche» ist kein Spaltenkopf: Format von .hbtitel, die Zahl dahinter bleibt */
+summary.pgruppe { font-size: .8rem; letter-spacing: normal; text-transform: none; }
 .pgruppe + .pliste { margin-top: var(--s2); }
 .projekte .pkopf + .pgruppe { margin-top: var(--s3); }
 /* Aufklapper der ruhenden Gruppe (25.09.2026): der Titel ist die summary, mit Anzahl und dem Chevron der Projektzeilen. */
@@ -545,8 +548,7 @@ details[open] > summary::before { transform: rotate(45deg); }
   details.dienst summary { font-size: .8rem; }
   .pwert { grid-template-columns: 4ch auto; column-gap: .3rem; } .prow .mikro, .pbetreff, .pbefund, .pgruppe .pkname, .pgruppe .pkmikro, .pgruppe .pkbetreff { display: none; }
   .pdetail { grid-template-columns: minmax(0, 1fr); row-gap: var(--s5); } }
-/* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: höchstens zwei Spalten (die dritte Spur ist seit der Inhaltsbreite
-   von 1800 px gesperrt, 05.11.2026), dann eine. */
+/* .fuss bricht über auto-fit selbst um, deshalb steht sie hier nicht: vier Spalten, dann drei, zwei, eine. */
 @media (max-width: 820px) { .tiles3, .nums, .hraster, .rraster { grid-template-columns: 1fr; } }
 /* Bei schmaler Breite wächst die Beschriftungsspalte wieder mit dem Wort: der Innenabstand der Kachel
    kostet 32 px, und mit fester 8-rem-Spalte brachen dort vier Werte um. Mit auto passt jede Zeile, weil

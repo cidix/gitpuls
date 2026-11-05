@@ -2272,7 +2272,7 @@ def handlung_block(c, heute, jetzt, offen=frozenset()):
 # Innenkante unten 173.58 px (vorher 193.59, davor 210.97); eine Zeile 17.91 px, Zeilenabstand 3.19 px, beide unverändert.
 # Neu gemessen am 26.10.2026 mit der dritten Metazeile «Ganze Vorwoche: N» der Wochenkachel: Kachel 366.33 px, Platz 190.95 px,
 # Zeile 17.91 px unverändert.
-# Unabhängig von der Breite: am 05.11.2026 mit der Inhaltsbreite 1800 px bei 1280, 1440, 1800 und 1920 px gemessen, überall 190.95 px.
+# Neu gemessen am 05.11.2026 mit den Kacheltiteln in normaler Schreibung (12.8 statt 12 px): Kachel 367.36 px, Platz 190.95 px unverändert.
 # Die Restzeile «und N weitere Repos» hat dieselbe Höhe und denselben Abstand und zählt mit.
 # Untereinander (unter 820 px) gilt die Rechnung nicht, dort stehen alle Repos.
 # ponytail: die Werte folgen dem Stylesheet nicht von selbst; wer dort Schrift, Abstände oder die Kurvenhöhe ändert, misst neu.
