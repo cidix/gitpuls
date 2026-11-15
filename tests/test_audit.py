@@ -277,7 +277,10 @@ def s10():
     assert fw(VPS_FILTER.replace("172.30.0.2", "172.31.0.9").replace(":OUTPUT ACCEPT [5:6]", ":OUTPUT ACCEPT [9:9]")), "Docker-Ketten und Zähler zählen nicht"
     assert not fw(VPS_FILTER.replace(":INPUT ACCEPT [0:0]", ":INPUT DROP [0:0]")), "eine geänderte Policy ist eine Abweichung"
     assert not fw(VPS_FILTER.replace("-A FORWARD -j DOCKER-USER\n", "")), "ein fehlender Sprung ist eine Abweichung"
-    assert not fw(VPS_FILTER.replace("-A INPUT -j ts-input\n", "")), "auch der Sprung in tailscaleds Kette"
+    # Seit 15.11.2026 (Cédric) fallen tailscaleds Ketten und Sprünge auf beiden Seiten weg: tailscaled setzt sie bei jedem Start selbst,
+    # an wechselnder Stelle. Vorher war ein fehlender Sprung ts-input eine Abweichung.
+    assert fw(VPS_FILTER.replace("-A INPUT -j ts-input\n", "")), "tailscaleds Sprung zählt nicht"
+    assert fw(VPS_FILTER.replace("-A FORWARD -j ts-forward\n", "").replace("-A FORWARD -j DOCKER-USER\n", "-A FORWARD -j DOCKER-USER\n-A FORWARD -j ts-forward\n"))
 
 
 APT_SIM = """Inst libfoo1 [1.0] (1.1 Debian:13.7/stable [amd64])

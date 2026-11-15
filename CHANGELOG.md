@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-15
+
+### Fixed
+
+- The firewall no longer reports the saved rules as differing when tailscaled only inserted its own jumps at another position after a restart. The comparison of filter and mangle leaves out the chains `ts-*`, their rules and the jumps into them on both sides.
+
 ## [2.5.0] - 2026-11-15
 
 ### Added
@@ -174,7 +180,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/cidix/gitpuls/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/cidix/gitpuls/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/cidix/gitpuls/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/cidix/gitpuls/compare/v2.3.0...v2.4.0

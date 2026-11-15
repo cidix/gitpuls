@@ -383,6 +383,7 @@ T = {
     "mz.wieder_da": lambda zeit: f"restored, saved {zeit}",
     "mz.gespeichert": "saved rules running, no restart since",
     "mz.weicht_ab": "differs from the saved rules",
+    "mz.vergleich_title": "Compared without the chains, rules and jumps that Docker and tailscaled set themselves on every start.",
     "mz.pakete": "Packages",
     "mz.upgradebar": lambda n: f"{n} upgradable",
     "mz.keine_offen": "none pending",

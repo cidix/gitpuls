@@ -257,6 +257,39 @@ for tab, zeile in (("nat", "-A POSTROUTING -o eth0 -j MASQUERADE"), ("nat", "-A 
     assert ss.regelsatz(GESP, tab) != ss.regelsatz(eigen, tab), ("Betreiberregel fiel weg", tab, zeile)
 assert ss.regelsatz(GESP, "nat") != ss.regelsatz(LAUF.replace(":POSTROUTING ACCEPT [7:420]", ":POSTROUTING DROP [7:420]"), "nat"), "Policy zählt"
 
+# tailscaled in filter und mangle (15.11.2026): nach dem Neustart stand nur der Sprung ts-forward an anderer Stelle in FORWARD; das ist gleich.
+# Ketten ts-* und ihre Regeln fallen auf beiden Seiten weg, eine Betreiberregel in FORWARD oder INPUT bleibt im Vergleich.
+TS = """*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:DOCKER-USER - [0:0]
+:DOCKER-FORWARD - [0:0]
+:ts-forward - [0:0]
+:ts-input - [0:0]
+-A INPUT -j ts-input
+-A INPUT -i lo -j ACCEPT
+-A FORWARD -j ts-forward
+-A FORWARD -j DOCKER-USER
+-A FORWARD -j DOCKER-FORWARD
+-A DOCKER-USER -i eth0 -j DROP
+-A ts-forward -i tailscale0 -j MARK --set-xmark 0x40000/0xff0000
+-A ts-input -i lo -s 100.64.0.1/32 -j ACCEPT
+COMMIT
+*mangle
+:PREROUTING ACCEPT [0:0]
+:ts-mangle - [0:0]
+-A PREROUTING -j ts-mangle
+COMMIT
+"""
+verschoben = TS.replace("-A FORWARD -j ts-forward\n", "").replace("-A FORWARD -j DOCKER-FORWARD\n", "-A FORWARD -j DOCKER-FORWARD\n-A FORWARD -j ts-forward\n")
+assert verschoben != TS and ss.regelsatz(verschoben) == ss.regelsatz(TS), "nur ts-forward verschoben ist gleich"
+assert ss.regelsatz(TS.replace("100.64.0.1", "100.64.0.9").replace(":ts-mangle - [0:0]\n-A PREROUTING -j ts-mangle\n", "")) == ss.regelsatz(TS), "tailscaleds Regeln fallen weg"
+assert not any("ts-" in z for z in ss.regelsatz(TS)), ss.regelsatz(TS)
+for eigen in ("-A FORWARD -i eth0 -p tcp -m tcp --dport 8080 -j DROP\n", "-A INPUT -p tcp -m tcp --dport 2222 -j ACCEPT\n", "-A DOCKER-USER -i tailscale0 -j RETURN\n"):
+    assert ss.regelsatz(verschoben.replace("-A DOCKER-USER -i eth0 -j DROP\n", "-A DOCKER-USER -i eth0 -j DROP\n" + eigen)) != ss.regelsatz(TS), ("Betreiberregel fiel weg", eigen)
+assert ss.regelsatz(TS.replace(":FORWARD DROP", ":FORWARD ACCEPT")) != ss.regelsatz(TS), "Policy zählt"
+assert ss.regeln(verschoben) == ss.regeln(TS) and len(ss.regeln(TS)["INPUT"]) == 1, ss.regeln(TS)
+
 # firewall(): je Tabelle und Familie True oder False; ohne lesbare Regeldatei None.
 regeldateien = tempfile.mkdtemp()
 for n_ in ("v4", "v6"):

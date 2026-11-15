@@ -841,6 +841,7 @@ h = web.server_html(fw, jetzt)
 assert "iptables, ufw nicht installiert" in h and "INPUT 7" in h and "DOCKER-USER 4" in h and "IPv6" in h, "zweite Reihe benannt"
 assert "netfilter-persistent aktiv" in h and "wieder da, Stand vom 08.09.,\u00a016:52" in h and "glut" not in h, h[h.index("Zweite Reihe"):][:400]
 assert not web.firewall_befunde(fw["firewall"]), "vollständige Reihe ist kein Befund"
+assert 'title="Verglichen ohne die Ketten, Regeln und Sprünge, die Docker und tailscaled bei jedem Start selbst setzen."><span class="mk">Nach Neustart' in h, "Ausschluss im title benannt"
 
 leer = json.loads(json.dumps(fw))
 leer["firewall"]["familien"]["IPv4"]["DOCKER-USER"] = 0

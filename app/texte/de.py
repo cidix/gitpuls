@@ -375,6 +375,7 @@ T = {
     "mz.wieder_da": lambda zeit: f"wieder da, Stand vom {zeit}",
     "mz.gespeichert": "gespeicherter Stand läuft, seither kein Neustart",
     "mz.weicht_ab": "weicht vom gespeicherten Stand ab",
+    "mz.vergleich_title": "Verglichen ohne die Ketten, Regeln und Sprünge, die Docker und tailscaled bei jedem Start selbst setzen.",
     "mz.pakete": "Pakete",
     "mz.upgradebar": lambda n: f"{n} upgradebar",
     "mz.keine_offen": "keine offen",

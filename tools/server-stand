@@ -41,8 +41,12 @@ FAMILIEN = (("IPv4", "iptables-save", "/etc/iptables/rules.v4"), ("IPv6", "ip6ta
 # Ketten, die Docker in filter selbst anlegt und bei jedem Start je Netz und Container neu schreibt: DOCKER, DOCKER-FORWARD und DOCKER-ISOLATION-*,
 # seit Docker 28 dazu DOCKER-BRIDGE, DOCKER-CT und DOCKER-INTERNAL (gemessen 11.10.2026 auf dem VPS, Docker 29.9: sie weichen nach jedem
 # neuen Container vom gespeicherten Stand ab). DOCKER-USER gehört dem Betreiber und bleibt im Vergleich, ebenso jede Betreiberregel in INPUT
-# und FORWARD, auch wenn sie ein Docker-Interface nennt, und die Ketten von tailscaled (gemessen gleich).
+# und FORWARD, auch wenn sie ein Docker-Interface nennt.
 LAUFZEIT_KETTE = re.compile(r"DOCKER(?!-USER$)[\w-]*$")
+# Die Ketten ts-* samt ihren Regeln und den Sprüngen dorthin setzt tailscaled bei jedem Start selbst, an wechselnder Stelle: nach dem Neustart
+# vom 15.11.2026 stand -A FORWARD -j ts-forward hinter den Docker-Sprüngen statt davor, sonst war alles gleich. Seither fallen sie in jeder
+# Tabelle auf beiden Seiten aus dem Vergleich; die Regelzahl in INPUT (regeln) lässt den Sprung ts-input ohnehin aus.
+TS_KETTE = re.compile(r"ts-[\w-]+$")
 # nat und raw schreiben Docker und tailscaled bei jedem Start neu. Seit 15.11.2026 je Tabelle und Familie verglichen, ohne genau die Zeilen,
 # die auf dem VPS (Docker 29.9.3, Tailscale 1.104.7) laufend und gespeichert gemessen sind: die Ketten DOCKER* und ts-* samt Sprüngen dorthin,
 # MASQUERADE je Docker-Bridge, in raw das DROP je Containeradresse und je veröffentlichtem Port auf 127.0.0.1 (nur Ports mit DNAT in der
@@ -162,8 +166,8 @@ def regeln(text):
 def regelsatz(text, nur=None):
     """Der wirksame Regelsatz für den Vergleich laufend gegen gespeichert (10.10.2026, Audit S10): je verglichener Tabelle jede Kette mit
     ihrer Policy und jede Regel samt Sprung, in ihrer Reihenfolge, ohne Zähler. Ohne `nur` filter und mangle, ausser den Ketten, die Docker
-    selbst anlegt (LAUFZEIT_KETTE); die Sprünge in sie zählen mit. Mit `nur` eine Tabelle aus NAT_RAW ohne die Zeilen von Docker und
-    tailscaled (fremd)."""
+    selbst anlegt (LAUFZEIT_KETTE; die Sprünge in sie zählen mit), und ausser den Zeilen von tailscaled (tailscaled). Mit `nur` eine Tabelle
+    aus NAT_RAW ohne die Zeilen von Docker und tailscaled (fremd)."""
     tabs, aus = tabellen(text), []
     ports = {m.group(1) for z in tabs.get("nat", []) if (m := DNAT_PORT.match(z))}
     for tabelle, zeilen in sorted(tabs.items()):
@@ -171,7 +175,7 @@ def regelsatz(text, nur=None):
             continue
         for z in zeilen:
             t = z.split()
-            if nur and fremd(tabelle, t, ports):
+            if fremd(tabelle, t, ports) if nur else tailscaled(t):
                 continue
             if len(t) > 1 and t[0].startswith(":") and not LAUFZEIT_KETTE.match(t[0][1:]):
                 aus.append(f"{tabelle} {t[0]} {t[1]}")
@@ -179,6 +183,14 @@ def regelsatz(text, nur=None):
                 aus.append(f"{tabelle} " + " ".join(t))
     # Nur Ketten mit Policy ACCEPT und keine Regel heisst dasselbe wie eine nicht geladene Tabelle (v6 raw fehlt in rules.v6, 15.11.2026)
     return [] if nur and all(z.split()[1].startswith(":") and z.endswith(" ACCEPT") for z in aus) else aus
+
+
+def tailscaled(t):
+    """Eine Zeile, die tailscaled selbst setzt: Kette ts-*, Regel darin oder Sprung dorthin."""
+    if t[0].startswith(":"):
+        return bool(TS_KETTE.match(t[0][1:]))
+    ziel = t[t.index("-j") + 1] if "-j" in t[:-1] else ""
+    return len(t) > 1 and bool(TS_KETTE.match(t[1]) or TS_KETTE.match(ziel))
 
 
 def fremd(tabelle, t, ports):

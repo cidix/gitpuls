@@ -1874,15 +1874,15 @@ def fuss_firewall(s):
                 else f'<span class="glut">{t("mz.persistent_nein")}</span>')
     if fw["seit_neustart"]:
         g = datetime.fromisoformat(fw["gespeichert_utc"].replace("Z", "+00:00")).astimezone(TZ)
-        feuer += mz(t("mz.nach_neustart"), t("mz.wieder_da", fmt.zeitpunkt(g, mit_jahr=False)))
+        feuer += mz(t("mz.nach_neustart"), title=t("mz.vergleich_title"), v=t("mz.wieder_da", fmt.zeitpunkt(g, mit_jahr=False)))
     elif fw["wie_gespeichert"]:
-        feuer += mz(t("mz.nach_neustart"), t("mz.gespeichert"))
+        feuer += mz(t("mz.nach_neustart"), title=t("mz.vergleich_title"), v=t("mz.gespeichert"))
     elif fw["wie_gespeichert"] is None:
-        feuer += mz(t("mz.nach_neustart"), nicht_gemessen(s, "firewall.gespeichert"))
+        feuer += mz(t("mz.nach_neustart"), title=t("mz.vergleich_title"), v=nicht_gemessen(s, "firewall.gespeichert"))
     else:
         # Gekürzt von "laufender Stand weicht vom gespeicherten ab": mit 43 Zeichen war das der
         # längste Wert der Seite und der einzige, der in der Fusszeile noch umbrach.
-        feuer += mz(t("mz.nach_neustart"), f'<span class="glut">{t("mz.weicht_ab")}</span>')
+        feuer += mz(t("mz.nach_neustart"), title=t("mz.vergleich_title"), v=f'<span class="glut">{t("mz.weicht_ab")}</span>')
     for tab, fam in (fw.get("tabellen") or {}).items():   # nat und raw je Familie, ohne die Zeilen von Docker und tailscaled (15.11.2026)
         abw = [name for name, gleich in fam.items() if gleich is False]
         feuer += mz(html.escape(tab), f'<span class="glut">{t("mz.tabelle_weicht", ", ".join(abw))}</span>' if abw
