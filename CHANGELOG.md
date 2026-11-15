@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.5.2] - 2026-11-15
+
+### Changed
+
+- The base image `python:3.13-slim-trixie` is pinned to digest `sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90`.
+
 ## [2.5.1] - 2026-11-15
 
 ### Fixed
@@ -180,7 +186,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.5.1...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.5.2...HEAD
+[2.5.2]: https://github.com/cidix/gitpuls/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/cidix/gitpuls/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/cidix/gitpuls/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/cidix/gitpuls/compare/v2.4.0...v2.4.1

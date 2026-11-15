@@ -2,7 +2,7 @@
 # über den Tag; Digest dort am 23.08.2026 gemessen, hier beim ersten Bau
 # gegengeprüft. Eine Abhängigkeit seit 26.09.2026: Babel für die Schreibweisen nach CLDR (app/format.py), gepinnt mit Hash in
 # requirements.txt (babel 2.18.0, BSD-3-Clause, ohne weitere Abhängigkeiten, rund 33 MB; im Basisbild gemessen installierbar).
-FROM python:3.13-slim-trixie@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a
+FROM python:3.13-slim-trixie@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
 
 # TZ allein ist kein Beleg: die Einteilung nach Tag/Woche nutzt SQLite 'localtime',
 # und das braucht /usr/share/zoneinfo/Europe/Zurich im Bild. Gemessen wird nach dem
