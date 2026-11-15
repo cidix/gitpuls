@@ -46,7 +46,7 @@ Rules in INPUT and DOCKER-USER per IP family, whether they survive a reboot, and
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/server-zone-dark.png">
-  <img alt="Server zone: a summary sentence, one update to pull by hand, five services each with a green dot and its last run, and four cards: Machine with product, host, load, memory, disk, cores and boot time; Installed with Docker, Compose, containerd, Tailscale, served ports, system and kernel; Firewall with seven INPUT and four DOCKER-USER rules for IPv4 and IPv6, netfilter-persistent active, nat and raw not compared; Updates with one upgradable package, one Docker update by hand, no restart required and unattended-upgrades active" src="docs/screenshots/server-zone-light.png">
+  <img alt="Server zone: a summary sentence, one update to pull by hand, five services each with a green dot and its last run, and four cards: Machine with product, host, load, memory, disk, cores and boot time; Installed with Docker, Compose, containerd, Tailscale, served ports, system and kernel; Firewall with seven INPUT and four DOCKER-USER rules for IPv4 and IPv6, netfilter-persistent active, the rules restored after the last restart, nat and raw the same as saved; Updates with one upgradable package, one Docker update by hand, no restart required and unattended-upgrades active" src="docs/screenshots/server-zone-light.png">
 </picture>
 
 ### Needs attention
