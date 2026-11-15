@@ -43,13 +43,21 @@ FAMILIEN = (("IPv4", "iptables-save", "/etc/iptables/rules.v4"), ("IPv6", "ip6ta
 # neuen Container vom gespeicherten Stand ab). DOCKER-USER gehört dem Betreiber und bleibt im Vergleich, ebenso jede Betreiberregel in INPUT
 # und FORWARD, auch wenn sie ein Docker-Interface nennt, und die Ketten von tailscaled (gemessen gleich).
 LAUFZEIT_KETTE = re.compile(r"DOCKER(?!-USER$)[\w-]*$")
-# nat und raw schreibt Docker je Netz, Container und veröffentlichtem Port (MASQUERADE, DNAT, DROP mit Container-IP). Seit 11.10.2026
-# (Bestätigungslauf zum Codex-Audit) werden sie nicht verglichen, sondern als «nicht verglichen» ausgewiesen: das Herausfiltern einzelner
-# Docker-Regeln verwechselte Betreiber- und Laufzeitregeln (eine eigene Regel auf docker0 fiel weg, eine MASQUERADE mit Container-IP blieb).
-NICHT_VERGLICHEN = ("nat", "raw")
+# nat und raw schreiben Docker und tailscaled bei jedem Start neu. Seit 15.11.2026 je Tabelle und Familie verglichen, ohne genau die Zeilen,
+# die auf dem VPS (Docker 29.9.3, Tailscale 1.104.7) laufend und gespeichert gemessen sind: die Ketten DOCKER* und ts-* samt Sprüngen dorthin,
+# MASQUERADE je Docker-Bridge, in raw das DROP je Containeradresse und je veröffentlichtem Port auf 127.0.0.1 (nur Ports mit DNAT in der
+# nat-Kette DOCKER desselben Satzes). Jede andere Zeile bleibt im Vergleich, auch eine eigene Regel auf docker0 (Bestätigungslauf 11.10.2026).
+NAT_RAW = ("nat", "raw")
+FREMDE_KETTE = re.compile(r"(DOCKER[\w-]*|ts-[\w-]+)$")
+BRIDGE = r"(docker0|br-[0-9a-f]{12})"
+NAT_BRIDGE = re.compile(rf"-A POSTROUTING -s \S+ ! -o {BRIDGE} -j MASQUERADE")
+RAW_CONTAINER = re.compile(rf"-A PREROUTING -d \S+/(32|128) ! -i {BRIDGE} -j DROP")
+RAW_PORT = re.compile(r"-A PREROUTING -d (127\.0\.0\.1/32|::1/128) ! -i lo -p tcp -m tcp --dport (\d+) -j DROP")
+DNAT_PORT = re.compile(r"-A DOCKER .*--dport (\d+) .*-j DNAT")
 # Wo es diese Dateien gibt, legt ein Paket /var/run/reboot-required an, wenn ein Update einen Neustart verlangt: Debian
 # (unattended-upgrades, gemessen 10.10.2026 auf dem VPS) und Ubuntu (update-notifier-common). Ohne sie sagt ein fehlender Marker nichts.
 NEUSTART_MARKER = "/var/run/reboot-required"
+NEUSTART_PAKETE = NEUSTART_MARKER + ".pkgs"   # dieselben Pakete schreiben daneben, welches Paket den Neustart verlangt
 NEUSTART_MECHANISMUS = ("/etc/kernel/postinst.d/unattended-upgrades", "/usr/share/update-notifier/notify-reboot-required")
 FRIST_S = 20   # je Aufruf; der Timer gibt dem ganzen Lauf 60 s
 
@@ -151,22 +159,42 @@ def regeln(text):
     return aus
 
 
-def regelsatz(text):
+def regelsatz(text, nur=None):
     """Der wirksame Regelsatz für den Vergleich laufend gegen gespeichert (10.10.2026, Audit S10): je verglichener Tabelle jede Kette mit
-    ihrer Policy und jede Regel samt Sprung, in ihrer Reihenfolge, ausser den Ketten, die Docker selbst anlegt (LAUFZEIT_KETTE); die Sprünge
-    in sie zählen mit. Zähler fallen weg. Verglichen werden filter und mangle, nicht nat und raw (NICHT_VERGLICHEN): die weist der Stand als
-    «nicht verglichen» aus, statt sie still als gespeichert zu werten (Codex-Audit 11.10.2026, Befund 5 und Bestätigungslauf)."""
-    aus = []
-    for tabelle, zeilen in sorted(tabellen(text).items()):
-        if tabelle in NICHT_VERGLICHEN:
+    ihrer Policy und jede Regel samt Sprung, in ihrer Reihenfolge, ohne Zähler. Ohne `nur` filter und mangle, ausser den Ketten, die Docker
+    selbst anlegt (LAUFZEIT_KETTE); die Sprünge in sie zählen mit. Mit `nur` eine Tabelle aus NAT_RAW ohne die Zeilen von Docker und
+    tailscaled (fremd)."""
+    tabs, aus = tabellen(text), []
+    ports = {m.group(1) for z in tabs.get("nat", []) if (m := DNAT_PORT.match(z))}
+    for tabelle, zeilen in sorted(tabs.items()):
+        if (tabelle != nur) if nur else tabelle in NAT_RAW:
             continue
         for z in zeilen:
             t = z.split()
+            if nur and fremd(tabelle, t, ports):
+                continue
             if len(t) > 1 and t[0].startswith(":") and not LAUFZEIT_KETTE.match(t[0][1:]):
                 aus.append(f"{tabelle} {t[0]} {t[1]}")
             elif len(t) > 1 and t[0] == "-A" and not LAUFZEIT_KETTE.match(t[1]):
                 aus.append(f"{tabelle} " + " ".join(t))
-    return aus
+    # Nur Ketten mit Policy ACCEPT und keine Regel heisst dasselbe wie eine nicht geladene Tabelle (v6 raw fehlt in rules.v6, 15.11.2026)
+    return [] if nur and all(z.split()[1].startswith(":") and z.endswith(" ACCEPT") for z in aus) else aus
+
+
+def fremd(tabelle, t, ports):
+    """Schreibt Docker oder tailscaled diese Zeile aus nat oder raw selbst? Gemessen 15.11.2026, siehe NAT_RAW."""
+    if t[0].startswith(":"):
+        return bool(FREMDE_KETTE.match(t[0][1:]))
+    if len(t) < 2:
+        return False
+    ziel = t[t.index("-j") + 1] if "-j" in t[:-1] else ""
+    if FREMDE_KETTE.match(t[1]) or FREMDE_KETTE.match(ziel):
+        return True
+    z = " ".join(t)
+    if tabelle == "nat":
+        return bool(NAT_BRIDGE.fullmatch(z))
+    m = RAW_PORT.fullmatch(z)
+    return bool(RAW_CONTAINER.fullmatch(z) or (m and m.group(2) in ports))
 
 
 def firewall(boot):
@@ -187,9 +215,9 @@ def firewall(boot):
     persistent = messung("firewall.persistent", netfilter_persistent)
     if not shutil.which("iptables-save") and shutil.which("nft") and not (ufw and ufw != "inactive"):
         UNGEMESSEN["firewall.nftables"] = "nftables-Regeln wertet v1 nicht aus"
-        return {"art": "nftables", "ufw": ufw, "familien": {}, "nicht_gemessen": [], "persistent": persistent, "wie_gespeichert": None, "nicht_verglichen": [],
+        return {"art": "nftables", "ufw": ufw, "familien": {}, "nicht_gemessen": [], "persistent": persistent, "wie_gespeichert": None, "tabellen": {},
                 "gespeichert_utc": None, "seit_neustart": False}
-    familien, gleich, gespeichert, nicht_gemessen, vorhanden, ungeprueft = {}, True, None, [], False, set()
+    familien, gleich, gespeichert, nicht_gemessen, vorhanden, je_tabelle = {}, True, None, [], False, {}
     for name, befehl, datei in FAMILIEN:
         text = messung(f"firewall.{name}", lauf, befehl)
         if text is None:
@@ -198,20 +226,22 @@ def firewall(boot):
             nicht_gemessen.append(name)
             continue
         familien[name] = {k: len(v) for k, v in regeln(text).items()}
-        ungeprueft |= set(tabellen(text)) & set(NICHT_VERGLICHEN)
         vorhanden = vorhanden or os.path.exists(datei)
         try:
-            gleich = regelsatz(open(datei).read()) == regelsatz(text) and gleich
+            gesp_text = open(datei).read()
+            gleich = regelsatz(gesp_text) == regelsatz(text) and gleich
             gespeichert = max(gespeichert or 0, os.path.getmtime(datei))
         except OSError:
-            gleich = False
+            gesp_text, gleich = None, False
+        for tab in NAT_RAW:   # je Tabelle und Familie: True gleich, False weicht ab, None ohne lesbare Regeldatei
+            je_tabelle.setdefault(tab, {})[name] = None if gesp_text is None else regelsatz(gesp_text, tab) == regelsatz(text, tab)
     gesp = datetime.fromtimestamp(gespeichert, timezone.utc) if gespeichert else None
     wie = (bool(familien) and gleich) if vorhanden or persistent is not None else None
     if wie is None:
         UNGEMESSEN["firewall.gespeichert"] = f"weder netfilter-persistent noch {', '.join(d for _, _, d in FAMILIEN)}"
     return {"art": "ufw" if ufw and ufw != "inactive" else "iptables" if familien or nicht_gemessen else "keine",
             "ufw": ufw, "familien": familien, "nicht_gemessen": nicht_gemessen, "persistent": persistent,
-            "wie_gespeichert": wie, "nicht_verglichen": sorted(ungeprueft),
+            "wie_gespeichert": wie, "tabellen": je_tabelle,
             "gespeichert_utc": iso(gesp) if gesp else None,
             "seit_neustart": bool(gesp and boot) and gleich and gesp < boot}
 
@@ -360,6 +390,13 @@ def neustart():
     raise Ungemessen(f"kein Mechanismus für {NEUSTART_MARKER} ({', '.join(NEUSTART_MECHANISMUS)} fehlen)")
 
 
+def neustart_pakete():
+    """Die Pakete aus NEUSTART_PAKETE in der Reihenfolge der Datei, ohne Doppel; None, wenn die Datei fehlt (Grund nicht gemeldet)."""
+    if not os.path.exists(NEUSTART_PAKETE):
+        return None
+    return list(dict.fromkeys(z.strip() for z in open(NEUSTART_PAKETE) if z.strip()))
+
+
 def deploy_lesen():
     """deploy.json von tools/deploy-stand.sh: (Einträge je Dienstname, Fehler). Fehlt die Datei, gibt es noch keinen Stand (None je Dienst);
     ist sie unlesbar oder kein Objekt, trägt jeder Dienst den Grund (Codex-Audit 11.10.2026), statt als «nicht gemessen» ohne Grund zu
@@ -442,6 +479,7 @@ def messen():
                     "platte_belegt_bytes": platte.used if platte else None, "platte_frei_bytes": platte.free if platte else None,
                     "pakete_upgradebar": sum(quellen.values()) if quellen is not None else None, "pakete_quellen": quellen or {}, "quellen_auto": auto,
                     "neustart_noetig": messung("neustart", neustart),
+                    "neustart_pakete": messung("neustart_pakete", neustart_pakete),
                     "unattended_upgrades": messung("automatik", automatik)},
         "installiert": {"docker": docker[0] if docker else None, "containerd": teile.get("containerd", "").lstrip("v") or None,
                         "compose": (messung("compose", lauf, "docker", "compose", "version", "--short") or "").strip() or None,

@@ -6,6 +6,16 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-15
+
+### Added
+
+- The server zone names the packages that require a reboot, from `/var/run/reboot-required.pkgs`: up to two by name, from three on the first two and the number of others; without the file "reason not reported".
+
+### Changed
+
+- The firewall compares nat and raw per IP family with the saved rules and shows "same" or "differs" instead of "not compared". Lines that Docker and tailscaled write themselves are left out.
+
 ## [2.4.1] - 2026-11-05
 
 ### Changed
@@ -164,7 +174,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.4.1...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/cidix/gitpuls/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/cidix/gitpuls/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/cidix/gitpuls/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/cidix/gitpuls/compare/v2.2.0...v2.3.0

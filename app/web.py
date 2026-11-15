@@ -1491,7 +1491,16 @@ def firewall_befunde(fw):
         ab.append(t("fw.nicht_persistent"))
     if fw["familien"] and fw["wie_gespeichert"] is False:   # None: kein iptables-persistent, nicht gemessen (11.10.2026)
         ab.append(t("fw.abweichung"))
+    # nat und raw je Familie ohne die Zeilen von Docker und tailscaled verglichen (15.11.2026)
+    ab += [t("fw.tabelle_weicht", name, tab) for tab, fam in (fw.get("tabellen") or {}).items() for name, gleich in fam.items() if gleich is False]
     return ab
+
+
+def neustart_grund(z):
+    """Welche Pakete den Neustart verlangen (neustart_pakete aus /var/run/reboot-required.pkgs): bis zwei mit Namen, ab drei die ersten zwei
+    und die Zahl der übrigen; ohne Datei «Grund nicht gemeldet»."""
+    p = z.get("neustart_pakete")
+    return t("nr.pakete", p[:2], len(p) - 2) if p else t("nr.nicht_gemeldet")
 
 
 def gedeckt(zustand, quelle):
@@ -1561,7 +1570,7 @@ def server_lage(s):
                 gescheitert = True
     ab += firewall_befunde(s.get("firewall"))
     if s["zustand"].get("neustart_noetig"):
-        ab.append(t("sl.neustart_noetig"))
+        ab.append(t("sl.neustart_noetig", neustart_grund(s["zustand"])))
     n = len(alle)
     laufen = sum(1 for d in s["dienste"] if all(c["status"] == "running" for c in d["container"]))
     rest = []
@@ -1874,8 +1883,10 @@ def fuss_firewall(s):
         # Gekürzt von "laufender Stand weicht vom gespeicherten ab": mit 43 Zeichen war das der
         # längste Wert der Seite und der einzige, der in der Fusszeile noch umbrach.
         feuer += mz(t("mz.nach_neustart"), f'<span class="glut">{t("mz.weicht_ab")}</span>')
-    if fw.get("nicht_verglichen"):   # nat und raw schreibt Docker je Container neu, v1 vergleicht sie nicht (11.10.2026)
-        feuer += mz(html.escape(", ".join(fw["nicht_verglichen"])), f'<span class="muted">{t("mz.nicht_verglichen")}</span>', title=t("mz.nicht_verglichen_title"))
+    for tab, fam in (fw.get("tabellen") or {}).items():   # nat und raw je Familie, ohne die Zeilen von Docker und tailscaled (15.11.2026)
+        abw = [name for name, gleich in fam.items() if gleich is False]
+        feuer += mz(html.escape(tab), f'<span class="glut">{t("mz.tabelle_weicht", ", ".join(abw))}</span>' if abw
+                    else nicht_gemessen(s, "firewall.gespeichert") if None in fam.values() else t("mz.tabelle_gleich"))
     return feuer
 
 
@@ -1888,7 +1899,7 @@ def fuss_updates(s):
     for q, n in sorted((z.get("pakete_quellen") or {}).items()):
         upd += mz(html.escape(kanal(q)), t("mz.quelle", n, gedeckt(z, q)))
     neustart = z.get("neustart_noetig")
-    return upd + (mz(t("mz.neustart"), f'<span class="glut">{t("mz.noetig")}</span>' if neustart else t("mz.nicht_noetig") if neustart is False
+    return upd + (mz(t("mz.neustart"), f'<span class="glut">{t("mz.noetig")}</span>, {html.escape(neustart_grund(z))}' if neustart else t("mz.nicht_noetig") if neustart is False
                      else nicht_gemessen(s, "neustart"))
                   + mz(t("mz.sicherheit"), t("mz.automatisch", z["unattended_upgrades"]) if z.get("unattended_upgrades") is not None
                        else nicht_gemessen(s, "automatik")))

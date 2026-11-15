@@ -190,6 +190,92 @@ d = deploy_lauf()
 assert "fehler" not in d["fernwerk-studio/a"] and d["fernwerk-studio/a"]["tag"] == "abc1234" and list(d) == ["fernwerk-studio/a"], ("Erfolg ersetzt den Fehler", d)
 assert sorted(os.listdir(werk)) == ["bin", "deploy.json", "tools"], ("keine temporäre Datei liegen geblieben", os.listdir(werk))
 
+# Grund für den Neustart (15.11.2026): /var/run/reboot-required.pkgs in der Reihenfolge der Datei, ohne Doppel; ohne Datei None.
+pk = os.path.join(tempfile.mkdtemp(), "reboot-required.pkgs")
+echt_pk, ss.NEUSTART_PAKETE = ss.NEUSTART_PAKETE, pk
+try:
+    assert ss.neustart_pakete() is None, "ohne Datei kein Grund"
+    open(pk, "w").write("linux-image-9.9.9-probe\nlibc6\nlinux-image-9.9.9-probe\n\n")
+    assert ss.neustart_pakete() == ["linux-image-9.9.9-probe", "libc6"], ss.neustart_pakete()
+finally:
+    ss.NEUSTART_PAKETE = echt_pk
+
+# nat und raw (15.11.2026): je Tabelle und Familie verglichen, ohne die Zeilen, die Docker und tailscaled selbst schreiben. Künstliche Sätze
+# nach der Form auf dem VPS: Docker ordnet DNAT, MASQUERADE und raw-DROP nach jedem Start anders, tailscaled hängt seinen Sprung anders ein.
+GESP = """*nat
+:PREROUTING ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+:DOCKER - [0:0]
+:ts-postrouting - [0:0]
+-A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
+-A POSTROUTING -j ts-postrouting
+-A POSTROUTING -s 10.88.0.0/16 ! -o docker0 -j MASQUERADE
+-A POSTROUTING -s 10.89.0.0/16 ! -o br-0123456789ab -j MASQUERADE
+-A DOCKER -d 127.0.0.1/32 ! -i br-0123456789ab -p tcp -m tcp --dport 9101 -j DNAT --to-destination 10.89.0.2:9101
+-A ts-postrouting -m mark --mark 0x40000/0xff0000 -j MASQUERADE
+COMMIT
+*raw
+:PREROUTING ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A PREROUTING -d 10.89.0.2/32 ! -i br-0123456789ab -j DROP
+-A PREROUTING -d 127.0.0.1/32 ! -i lo -p tcp -m tcp --dport 9101 -j DROP
+COMMIT
+"""
+LAUF = """*nat
+:PREROUTING ACCEPT [5:300]
+:POSTROUTING ACCEPT [7:420]
+:DOCKER - [0:0]
+:ts-postrouting - [0:0]
+-A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
+-A POSTROUTING -s 10.88.0.0/16 ! -o docker0 -j MASQUERADE
+-A POSTROUTING -j ts-postrouting
+-A POSTROUTING -s 10.89.0.0/16 ! -o br-0123456789ab -j MASQUERADE
+-A POSTROUTING -s 10.90.0.0/16 ! -o br-ba9876543210 -j MASQUERADE
+-A DOCKER -d 127.0.0.1/32 ! -i br-0123456789ab -p tcp -m tcp --dport 9101 -j DNAT --to-destination 10.89.0.2:9101
+-A ts-postrouting -m mark --mark 0x40000/0xff0000 -j MASQUERADE
+COMMIT
+*raw
+:PREROUTING ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A PREROUTING -d 127.0.0.1/32 ! -i lo -p tcp -m tcp --dport 9101 -j DROP
+-A PREROUTING -d 10.89.0.3/32 ! -i br-0123456789ab -j DROP
+-A PREROUTING -d 10.89.0.2/32 ! -i br-0123456789ab -j DROP
+COMMIT
+"""
+for tab in ss.NAT_RAW:
+    assert ss.regelsatz(GESP, tab) == ss.regelsatz(LAUF, tab), (tab, ss.regelsatz(GESP, tab), ss.regelsatz(LAUF, tab))
+assert ss.regelsatz(LAUF, "nat") == [] and ss.regelsatz(LAUF, "raw") == [], "nur Policies ACCEPT gilt wie keine Tabelle"
+assert ss.regelsatz(GESP, "raw") == ss.regelsatz("*filter\nCOMMIT\n", "raw"), "eine ungespeicherte Tabelle gleicht einer leeren"
+assert ss.regelsatz(LAUF) == [], "ohne nur bleiben nat und raw aus dem Vergleich von filter und mangle"
+# Betreiberregeln bleiben im Vergleich, auch auf docker0 und in Docker-Form mit anderem Ziel; ein Port-DROP ohne DNAT gehört nicht Docker.
+for tab, zeile in (("nat", "-A POSTROUTING -o eth0 -j MASQUERADE"), ("nat", "-A POSTROUTING -s 10.88.0.0/16 -o docker0 -j MASQUERADE"),
+                   ("nat", "-A PREROUTING -i docker0 -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 5353"),
+                   ("nat", "-A POSTROUTING -s 10.89.0.2/32 -d 10.89.0.2/32 -p tcp -m tcp --dport 9101 -j MASQUERADE"),
+                   ("raw", "-A PREROUTING -d 127.0.0.1/32 ! -i lo -p tcp -m tcp --dport 2222 -j DROP"),
+                   ("raw", "-A PREROUTING -d 10.89.0.2/32 ! -i eth0 -j DROP"), ("raw", "-A PREROUTING -j CT --notrack")):
+    eigen = LAUF.replace(f"*{tab}\n", f"*{tab}\n{zeile}\n", 1)
+    assert ss.regelsatz(GESP, tab) != ss.regelsatz(eigen, tab), ("Betreiberregel fiel weg", tab, zeile)
+assert ss.regelsatz(GESP, "nat") != ss.regelsatz(LAUF.replace(":POSTROUTING ACCEPT [7:420]", ":POSTROUTING DROP [7:420]"), "nat"), "Policy zählt"
+
+# firewall(): je Tabelle und Familie True oder False; ohne lesbare Regeldatei None.
+regeldateien = tempfile.mkdtemp()
+for n_ in ("v4", "v6"):
+    open(os.path.join(regeldateien, n_), "w").write(ECHT + GESP)
+ss.FAMILIEN = (("IPv4", "iptables-save", os.path.join(regeldateien, "v4")), ("IPv6", "ip6tables-save", os.path.join(regeldateien, "v6")))
+ss.subprocess = types.SimpleNamespace(run=lambda *a, **k: types.SimpleNamespace(stdout="enabled\n"), CalledProcessError=subprocess.CalledProcessError,
+                                      SubprocessError=subprocess.SubprocessError, TimeoutExpired=subprocess.TimeoutExpired)
+try:
+    ss.lauf = lambda *cmd: ECHT + (LAUF if cmd[0] == "iptables-save" else LAUF.replace("10.89.0.0/16 ! -o br-0123456789ab -j MASQUERADE", "10.89.0.0/16 -j ACCEPT"))
+    fw = ss.firewall(datetime(2026, 11, 15, tzinfo=timezone.utc))
+    assert fw["tabellen"] == {"nat": {"IPv4": True, "IPv6": False}, "raw": {"IPv4": True, "IPv6": True}}, fw["tabellen"]
+    assert fw["wie_gespeichert"] is True, "nat und raw ändern den Vergleich von filter und mangle nicht"
+    os.unlink(os.path.join(regeldateien, "v6"))
+    fw = ss.firewall(datetime(2026, 11, 15, tzinfo=timezone.utc))
+    assert fw["tabellen"] == {"nat": {"IPv4": True, "IPv6": None}, "raw": {"IPv4": True, "IPv6": None}}, fw["tabellen"]
+finally:
+    ss.subprocess, ss.FAMILIEN = echt_sp, echt_fam
+
 print("ok: sieben INPUT- und vier DOCKER-USER-Regeln, tailscaleds Sprung zählt nicht, leere Kette bleibt messbar;"
+      " Neustart-Pakete aus reboot-required.pkgs; nat und raw je Familie ohne Docker- und tailscaled-Zeilen verglichen, Betreiberregeln bleiben;"
       " server.json atomar über das Zielverzeichnis getauscht, Ringpuffer ersatzlos zurückgebaut; Firewall-Familie und Timer-Unit"
       " getrennt gemessen; ufw-, nftables- und Rootless-Host ohne falschen Firewall-Befund; Deploy-Messfehler behält den letzten Stand")

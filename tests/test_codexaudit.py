@@ -301,7 +301,7 @@ def c11():
 FILTER_LEER = "*filter\n:INPUT ACCEPT [0:0]\n:FORWARD DROP [0:0]\n:OUTPUT ACCEPT [0:0]\nCOMMIT\n"
 
 
-@pruefung("c5", "5: iptables nach Tabelle: filter zählt allein, Betreiberregeln auch auf docker0 fallen auf, nat und raw sind «nicht verglichen»")
+@pruefung("c5", "5: iptables nach Tabelle: filter zählt allein, Betreiberregeln auch auf docker0 fallen auf, nat und raw je Familie ohne Docker-Zeilen verglichen")
 def c5():
     ss = serverstand()
     text = "*nat\n:PREROUTING ACCEPT [0:0]\n:INPUT ACCEPT [0:0]\n-A INPUT -p tcp --dport 22 -j ACCEPT\nCOMMIT\n" + FILTER_LEER
@@ -330,14 +330,15 @@ def c5():
                 f"*raw\n:PREROUTING ACCEPT [0:0]\n-A PREROUTING -d {ip}/32 ! -i br-68424ba94bb2 -j DROP\nCOMMIT\n"
                 + filt(f"-A DOCKER -d {ip}/32 ! -i br-68424ba94bb2 -o br-68424ba94bb2 -p tcp -m tcp --dport 80 -j ACCEPT", "-A FORWARD -j DOCKER-USER"))
     fw = lauf(docker("172.18.0.3"), docker("172.18.0.2"))
-    assert fw["wie_gespeichert"] is True and fw["nicht_verglichen"] == ["nat", "raw"], fw
-    # nat und raw stehen als «nicht verglichen» auf der Seite, de und en
+    # Seit 15.11.2026 je Familie verglichen: das DROP je Containeradresse in raw schreibt Docker 29 selbst und fällt weg; die MASQUERADE mit
+    # Container-IP in der Form von Docker 24 ist auf dem VPS nicht gemessen, bleibt im Vergleich und weicht bei einem IP-Wechsel ab.
+    assert fw["wie_gespeichert"] is True and fw["tabellen"] == {"nat": {"IPv4": False}, "raw": {"IPv4": True}}, fw
     _, web = umgebung()
-    for sprache, wort in (("de", "nicht verglichen"), ("en", "not compared")):
+    for sprache, gleich, weicht in (("de", "gleich", "weicht ab, IPv4"), ("en", "same", "differs, IPv4")):
         s_ = {**beispiel(), "firewall": fw}
         with web.gilt(sprache):
             h = web.fuss_firewall(s_)
-        assert "nat, raw" in h and wort in h, (sprache, h[-300:])
+        assert f'>raw</span><span>{gleich}</span>' in h and f'>nat</span><span><span class="glut">{weicht}</span>' in h, (sprache, h[-400:])
 
 
 @pruefung("c13", "13: «gleich main» nur bei identischem Commit, ein Stand ohne Rückstand auf anderem Commit ist abweichend")

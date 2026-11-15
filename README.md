@@ -42,7 +42,7 @@ The server zone sums up the host in one sentence and lists your services with th
 
 Load, memory, disk and boot time of the machine next to the versions of Docker, Compose, containerd, Tailscale, the system and the kernel.
 
-Rules in INPUT and DOCKER-USER per IP family, whether they survive a reboot, and pending apt updates, including the ones you have to pull by hand.
+Rules in INPUT and DOCKER-USER per IP family, whether they survive a reboot, and pending apt updates, including the ones you have to pull by hand. The running rules are compared with the saved ones per table: filter and mangle, and nat and raw per IP family as "same" or "differs". When a reboot is required, the packages that asked for it are named.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/server-zone-dark.png">
@@ -129,7 +129,7 @@ Without Actions or Dependabot alerts the dashboard shows "not measured" for thos
 | `GITPULS_TOKENDATEI` | `./github.env` | File with `GITHUB_TOKEN=...`. |
 | `GITPULS_VOLUME` | `gitpuls-daten` | Docker volume for the database. |
 | `GITPULS_TAKT_MIN` | `60` | Collector interval inside the container in minutes. `0` disables it; a negative, infinite or non-numeric value stops the start with an error. |
-| `GITPULS_TAG` | `2.4.1` | Image tag. The footer shows the version built into the image; an image built from source shows this tag instead. |
+| `GITPULS_TAG` | `2.5.0` | Image tag. The footer shows the version built into the image; an image built from source shows this tag instead. |
 | `GITPULS_DIENSTE` | `tools/dienste.json` | Service table for the server zone (example: `tools/dienste.beispiel.json`). Service names must be unique; an invalid entry is shown as "not measured" and affects only itself. |
 | `GITPULS_PRODUKT` | empty | Product line of the machine shown in the server zone. |
 | `GITPULS_SERVER_ZIEL`, `GITPULS_DEPLOY_ZIEL` | in the volume | Where the host scripts write `server.json` and `deploy.json`. |
@@ -153,6 +153,8 @@ To use an existing volume that `docker compose down -v` must not remove, create 
 - Only the default branch of each repository is counted; work on other branches shows up as "waiting on main" until it is merged.
 - A commit is counted once, in the repository where it was first seen.
 - The server zone covers firewall rules from iptables and pending updates from apt only (Debian, Ubuntu). Whether the rules survive a reboot is measured for iptables-persistent only; with ufw or nftables.service it shows "not measured". On a host with nftables and without iptables the rules themselves are "not measured".
+- nat and raw are compared without the lines Docker and tailscaled write on every start: the chains `DOCKER*` and `ts-*` with the jumps into them, `MASQUERADE` per Docker bridge (`docker0`, `br-…`), and in raw the `DROP` per container address and per published port on `127.0.0.1` (only ports with a `DNAT` in the nat chain `DOCKER`). Measured on Docker 29.9 and Tailscale 1.104; every other line, including your own rules on `docker0`, stays in the comparison. A table with only `ACCEPT` policies and no rules counts as empty, like a table that was not saved.
+- The reason for a required reboot comes from `/var/run/reboot-required.pkgs` (Debian, Ubuntu); without that file it shows "reason not reported".
 - `tools/server-stand` reads containers through the `docker` CLI. With rootless Docker, set `DOCKER_HOST` (e.g. `unix:///run/user/1000/docker.sock`) and `GITPULS_SERVER_ZIEL` (the volume's mount point from `docker volume inspect gitpuls-daten`, plus `/server.json`) in `.env`. With Podman, set `GITPULS_SERVER_ZIEL` the same way and install `podman-docker`; without it, containers show "not measured".
 
 ## Status

@@ -41,8 +41,16 @@ for wort in ("Kundenseite", "Preisbeobachter", "gitpuls", "Trainingslog", "Beisp
              "1.102.3", "443, 8443, 8444, 8446", "6.12.101+deb13-amd64", "ufw nicht installiert", "trixie", "unattended-upgrades aktiv"):
     assert wort in s, wort
 satz, ab = web.server_lage(beispiel)
-assert satz.startswith("gitpuls: Timer gitpuls-server fehlt. Neustart nötig. Sonst laufen alle vier Dienste"), satz
-assert "älter als" not in s and '>Neustart</span><span><span class="glut">nötig' in s
+assert satz.startswith("gitpuls: Timer gitpuls-server fehlt. Neustart nötig, Grund nicht gemeldet. Sonst laufen alle vier Dienste"), satz
+assert "älter als" not in s and '>Neustart</span><span><span class="glut">nötig</span>, Grund nicht gemeldet</span>' in s
+
+# 2a: Grund für den Neustart aus /var/run/reboot-required.pkgs (15.11.2026): bis zwei Pakete mit Namen, ab drei die ersten zwei und der Rest
+for pakete_, grund_ in ((["linux-image-9.9.9-probe"], "linux-image-9.9.9-probe"), (["linux-image-9.9.9-probe", "libc6"], "linux-image-9.9.9-probe und libc6"),
+                        (["linux-image-9.9.9-probe", "libc6", "dbus", "systemd"], "linux-image-9.9.9-probe, libc6 und 2 weitere"), ([], "Grund nicht gemeldet")):
+    mit_grund = json.loads(json.dumps(beispiel))
+    mit_grund["zustand"]["neustart_pakete"] = pakete_
+    assert f"Neustart nötig, {grund_}." in web.server_lage(mit_grund)[0], (grund_, web.server_lage(mit_grund)[0])
+    assert f'>Neustart</span><span><span class="glut">nötig</span>, {grund_}</span>' in web.server_html(mit_grund, jetzt), grund_
 
 # 2b: ohne Abweichungen der Normalsatz, ohne Warnfarbe; mit gestopptem Container und gescheitertem Lauf zuerst die Abweichung
 beispiel["zustand"]["neustart_noetig"] = False
@@ -866,6 +874,22 @@ assert "weicht" not in h and "netfilter-persistent nicht aktiv" not in h and "gl
 rootless = json.loads(json.dumps(ufw_host))
 rootless["firewall"].update(art="iptables", ufw=None, familien={"IPv4": {"INPUT": 2}})
 assert not web.firewall_befunde(rootless["firewall"]) and "DOCKER-USER" not in web.server_html(rootless, jetzt)
+# nat und raw je Familie (15.11.2026): «gleich» ohne Warnfarbe, eine Abweichung in Warnfarbe mit ihrer Familie und als Befund, ohne
+# lesbare Regeldatei nicht gemessen; «nicht verglichen» gibt es nicht mehr.
+tab = json.loads(json.dumps(fw))
+tab["firewall"]["tabellen"] = {"nat": {"IPv4": True, "IPv6": True}, "raw": {"IPv4": True, "IPv6": True}}
+h = web.server_html(tab, jetzt)
+assert '>nat</span><span>gleich</span>' in h and '>raw</span><span>gleich</span>' in h and "glut" not in h and "nicht verglichen" not in h
+assert not web.firewall_befunde(tab["firewall"])
+tab["firewall"]["tabellen"]["raw"]["IPv6"] = False
+h = web.server_html(tab, jetzt)
+assert '>raw</span><span><span class="glut">weicht ab, IPv6</span>' in h and '>nat</span><span>gleich</span>' in h, h[h.index("Zweite Reihe"):][:900]
+assert web.firewall_befunde(tab["firewall"]) == ["Firewall IPv6: raw weicht vom gespeicherten Stand ab"]
+assert "Firewall IPv6: raw weicht vom gespeicherten Stand ab" in web.server_lage(tab)[0]
+tab["firewall"]["tabellen"] = {"nat": {"IPv4": None}, "raw": {"IPv4": None}}
+h = web.server_html(tab, jetzt)
+assert '>nat</span><span>gleich' not in h and h.count("nicht gemessen") >= 2 and not web.firewall_befunde(tab["firewall"]), h[h.index("Zweite Reihe"):][:900]
+
 nft = json.loads(json.dumps(ufw_host))
 nft["firewall"].update(art="nftables", ufw=None, familien={})
 nft["ungemessen"] = {"firewall.nftables": "nftables-Regeln wertet v1 nicht aus"}
@@ -2645,6 +2669,15 @@ en_sv["dienste"][1]["timer"][0].update(status="inactive", ergebnis="exit-code", 
 en_sv["dienste"][2]["timer"].append({"unit": "fehlt-probe", "status": "fehlt"})
 en_sv["dienste"][0]["container"][0]["neustarts"] = 2
 en_sv["zustand"]["neustart_noetig"] = True
+en_sv["zustand"]["neustart_pakete"] = ["linux-image-9.9.9-probe", "libc6", "dbus"]
+en_sv["firewall"]["tabellen"] = {"nat": {"IPv4": True, "IPv6": False}, "raw": {"IPv4": True, "IPv6": True}}
+with sprache.gilt("en"):
+    assert "Restart required, linux-image-9.9.9-probe, libc6 and 1 more." in web.server_lage(en_sv)[0], web.server_lage(en_sv)[0]
+    h_en = web.server_html(en_sv, datetime.now(timezone.utc))
+    assert '<span class="glut">required</span>, linux-image-9.9.9-probe, libc6 and 1 more</span>' in h_en
+    assert '>raw</span><span>same</span>' in h_en and '>nat</span><span><span class="glut">differs, IPv6</span>' in h_en
+    assert "Firewall IPv6: nat differs from the saved rules" in web.server_lage(en_sv)[0]
+    assert web.neustart_grund({}) == "reason not reported" and web.neustart_grund({"neustart_pakete": ["a", "b"]}) == "a and b"
 alt_zust = json.loads(json.dumps(en_sv)); alt_zust["erhoben_utc"] = web.iso_utc(datetime.now(timezone.utc) - timedelta(minutes=30))
 erfasst, echt_block = [], web.block
 def mit_erfassung(name, fn, *a):

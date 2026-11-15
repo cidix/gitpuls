@@ -328,11 +328,11 @@ def server(dienst_deploy):
         "zustand": {"boot_utc": utc(boot), "load": [0.21, 0.17, 0.12], "ram_belegt_bytes": 1_684_000_768, "ram_verfuegbar_bytes": 2_329_948_160,
                     "platte_belegt_bytes": 18_870_000_640, "platte_frei_bytes": 56_820_000_768, "pakete_upgradebar": 1,
                     "pakete_quellen": {"Docker CE:trixie": 1}, "quellen_auto": {"Docker CE:trixie": False},
-                    "neustart_noetig": False, "unattended_upgrades": True},
+                    "neustart_noetig": False, "neustart_pakete": None, "unattended_upgrades": True},
         "installiert": {"docker": "29.8.1", "containerd": "2.3.4", "compose": "5.5.1", "tailscale": "1.104.2", "serve_ports": [443, 8443, 8444, 8445, 8446]},
         "firewall": {"art": "iptables", "ufw": None, "familien": {"IPv4": {"INPUT": 7, "DOCKER-USER": 4}, "IPv6": {"INPUT": 7, "DOCKER-USER": 4}},
                      "nicht_gemessen": [], "persistent": True, "wie_gespeichert": True, "gespeichert_utc": utc(boot - timedelta(days=2)), "seit_neustart": True,
-                     "nicht_verglichen": ["nat", "raw"]},   # wie tools/server-stand auf einem Docker-Host seit 0e425fc
+                     "tabellen": {"nat": {"IPv4": True, "IPv6": True}, "raw": {"IPv4": True, "IPv6": True}}},   # wie tools/server-stand seit 2.5.0
         "dienste": dienste,
     }
 
