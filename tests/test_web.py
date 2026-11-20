@@ -2242,6 +2242,10 @@ assert re.search(r"\.fbalken[^{]*\{\s*display: none", schmal_480), schmal_480[:4
 # Seit 10.10.2026 mit :not(.glut): trägt der Wert selbst die Warnfarbe (fehlender Timer), bleibt sie stehen.
 assert "color: var(--txt)" in " ".join(regeln[".dz > span:not(.dk):not(.glut)"]), regeln.get(".dz > span:not(.dk):not(.glut)")
 assert "color: var(--lbl)" in " ".join(regeln[".dk"]) and ".dz span:last-child" not in regeln, "Nachfahre würde den Glut-Span schlagen"
+# Aufklappdetail ganze Pixel hoch (2.7.3): Zeilenhöhe, Zeilenabstand und Innenabstand der Beschriftung sind bei 16 px je rem ganze Pixel,
+# damit das Aufklappen die Zeilen darunter um ganze Pixel verschiebt.
+_rem = lambda regel, eig: float(re.search(rf"{eig}: ([\d.]+)rem", " ".join(regeln[regel])).group(1)) * 16
+assert all(_rem(r_, e_).is_integer() for r_, e_ in ((".ddetail", "line-height"), (".ddetail", "row-gap"), (".dk", "padding-top"))), regeln[".ddetail"]
 
 # ---- Ablese-Zeiger -------------------------------------------------------------------------------
 # Jede Grafik der Seite trägt ihn, keine zweimal, und nichts davon als Schrift im gestreckten SVG.

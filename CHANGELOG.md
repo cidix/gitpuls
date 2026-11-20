@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.3] - 2026-11-20
+
+### Fixed
+
+- Expanding a service moves the rows below it by whole pixels, so they stay as sharp as before.
+
 ## [2.7.2] - 2026-11-20
 
 ### Fixed

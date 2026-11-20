@@ -163,12 +163,15 @@ details.dienst summary a { font-weight: 600; }
    spannen über alle vier. Eine spannende Zelle reicht in die flexible letzte Spur und weitet die Spuren davor deshalb nicht. Seit 2.7.0
    dürfen die drei Laufspuren unter ihre Inhaltsbreite schrumpfen (minmax(0, max-content)) und brechen dann um: als feste max-content-Spuren
    mit nowrap machten lange Laufnamen die Kachel breiter als die Seite (gemessen 20.11.2026, 63 px bei 1280 und 113 px bei 430). */
+/* Zeilenhöhe 19 px und 1 px über der Beschriftung (2.7.3) statt 1.45 × 12.8 = 18.56 px und .1rem: so ist das Aufklappdetail ganze Pixel hoch,
+   und was darunter liegt, rutscht beim Aufklappen um ganze Pixel statt auf einen anderen Teilpixel (gemessen 20.11.2026: 236.4 px, die Zeilen
+   darunter wurden mit anderer Kantenglättung gezeichnet). Die Unterkante der Beschriftung liegt 1 px unter der des Werts (vorher 1.59 px). */
 .ddetail { display: grid; grid-template-columns: max-content repeat(3, minmax(0, max-content)) minmax(0, 1fr); column-gap: var(--s3); row-gap: .25rem;
-  padding: 0 0 var(--s3) calc(.625rem + var(--s6)); font-size: .8rem; font-variant-numeric: tabular-nums; }
+  padding: 0 0 var(--s3) calc(.625rem + var(--s6)); font-size: .8rem; line-height: 1.1875rem; font-variant-numeric: tabular-nums; }
 .dz { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
 .dz > span:not(.dk) { grid-column: 2 / -1; }
 .dz.lauf > span:not(.dk) { grid-column: auto; min-width: 0; overflow-wrap: anywhere; }
-.dk { color: var(--lbl); font-size: .75rem; letter-spacing: .01em; padding-top: .1rem; }
+.dk { color: var(--lbl); font-size: .75rem; letter-spacing: .01em; padding-top: .0625rem; }
 /* Dieselbe Ordnung wie in den Fussblöcken seit f9caaee (.mz): Beschriftungsspalte gedämpft, Wertspalte in
    Textfarbe. Vorher lag beides auf --sec des Aufklappdetails, und der Wert las sich so leise wie sein Etikett.
    Kindkombinator, nicht Nachfahre: als `.dz span:last-child` schlüge die Regel den verschachtelten Glut-Span
