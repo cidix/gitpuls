@@ -6,6 +6,13 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-11-20
+
+### Fixed
+
+- Shortened commit subjects end with "…".
+- The details of an expanded project wrap between whole label and value pairs, with the separator at the end of a line.
+
 ## [2.7.0] - 2026-11-20
 
 ### Added

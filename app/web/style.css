@@ -483,10 +483,12 @@ details.prow[open] .chev, details.dienst[open] .chev { transform: rotate(45deg);
    Aufzählungspunkten, dieselbe Ordnung wie in den Fussblöcken (.mz). */
 .pmeta { margin: 0; display: flex; flex-wrap: wrap; gap: .15rem .4rem; font-size: .8rem; line-height: 1.5; font-variant-numeric: tabular-nums; }
 /* Seit 26.09.2026 fliessen die Paare nebeneinander (vorher eines je Zeile, fünf Zeilen) und brechen nur zwischen den Paaren um. Ein Paar ist
-   eine Einheit ohne Umbruch; der Mittelpunkt steht vor jedem Paar ausser dem ersten, mit demselben Abstand .4rem auf beiden Seiten. Ein
+   eine Einheit ohne Umbruch; der Mittelpunkt steht seit 2.7.1 nach jedem Paar ausser dem letzten, mit demselben Abstand .4rem auf beiden Seiten. Ein
    überlanger Wert (Zweigname) kürzt mit Ellipse statt das Detail zu sprengen. */
 .ppaar { display: inline-flex; align-items: baseline; gap: .4rem; white-space: nowrap; min-width: 0; max-width: 100%; }
-.ppaar + .ppaar::before { content: "·"; color: var(--lbl); }
+/* Der Trennpunkt hängt seit 2.7.1 am vorherigen Paar (::after), nicht am folgenden: brach ein Paar um, begann die neue Zeile mit «·»
+   (gemessen 20.11.2026 bei mapfolk-web, 1280 px: «· Zweig main» allein auf der zweiten Zeile). */
+.ppaar:not(:last-child)::after { content: "·"; color: var(--lbl); }
 .ppaar.zweig { flex: 1 1 0; min-width: 6.5rem; }
 .pmeta dt { color: var(--lbl); flex: none; }
 .pmeta dd { margin: 0; color: var(--txt); min-width: 0; overflow: hidden; text-overflow: ellipsis; }

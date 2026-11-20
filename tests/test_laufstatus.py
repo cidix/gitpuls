@@ -108,6 +108,10 @@ h = html(d_u)
 assert '<i class="punkt glut"' in h and '<span class="palter dzustand"><span class="glut">unvollständig</span></span>' in h, h[:600]
 assert f'<div class="dz"><span class="dk">Ergebnis</span><span class="glut">{TEXT}</span></div>' in h, h
 assert satz(d_u).startswith(f"Kundenportal: {TEXT}.") and "sauber" not in satz(d_u), satz(d_u)
+# Der Name im Lagesatz ist der Anzeigename des Dienstes aus der Diensttabelle (server.json "name"), nie ein fester Text: zwei Namen, zwei Sätze.
+for name_ in ("Alpha-Werk", "Beta Messung"):
+    d_n = {**d_u, "name": name_}
+    assert satz(d_n).startswith(f"{name_}: {TEXT}.") and satz(d_n).count(": letzter Lauf unvollständig") == 1, satz(d_n)
 d_exit = dienst(lauf={"ergebnis": "unvollständig", "betroffen": 3, "gesamt": 48}, timer=[{**timer_, "ergebnis": "exit-code", "exit": 1}])
 assert '<span class="glut">Fehler</span>' in html(d_exit) and ">unvollständig<" not in html(d_exit), "Exit ungleich 0 bleibt Fehler und geht vor"
 gleich = html(dienst())

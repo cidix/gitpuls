@@ -318,7 +318,7 @@ def commit_zeile(fn, x):
     try:
         k = x["commit"]
         zeile = (x["sha"], fn, k["author"]["date"], k["author"]["email"], (x.get("author") or {}).get("login"),
-                 k["message"].split("\n", 1)[0][:120], len(x.get("parents") or []))
+                 db.betreff(k["message"]), len(x.get("parents") or []))
     except (KeyError, TypeError, AttributeError) as e:
         raise github.ungueltig(f"repos/{fn}/commits", "eine Liste von Commits", x) from e
     if not all(isinstance(v, str) for v in (zeile[0], zeile[2])):

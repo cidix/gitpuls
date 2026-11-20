@@ -176,4 +176,21 @@ t_w = time.monotonic()
 assert lauf(z(0), ["x/ruhig", "x/y"]), "der Sammler wartet und läuft durch"
 gewartet = time.monotonic() - t_w
 assert halter.wait() == 0 and gewartet >= 5, ("an der Sperre gewartet", gewartet)
+# Betreff (2.7.1): bis 120 Zeichen unverändert, länger endet sichtbar mit «…» bei 120 Zeichen; über den echten Pfad des Sammlers (commit_zeile).
+eintrag = lambda nachricht: {"sha": "b1", "commit": {"author": {"date": "2026-11-20T10:00:00Z", "email": "dev@fernwerk-studio.example"}, "message": nachricht}}
+for n, erwartet in ((119, "x" * 119), (120, "x" * 120), (121, "x" * 119 + "…")):
+    assert sammler.commit_zeile("x/y", eintrag("x" * n + "\nKörper"))[5] == erwartet, n
+# Einmalige Nachführung alter Zeilen: genau 120 Zeichen ohne «…» bekommen sie, kürzere und schon markierte bleiben, ein zweiter Start ändert nichts.
+_db_alt = db.DB
+db.DB = type(db.DB)(tempfile.mkdtemp()) / "betreff.db"
+with db.verbinden(schreibend=True) as c2:
+    for sha, b in (("m1", "y" * 119), ("m2", "y" * 120), ("m3", "y" * 119 + "…")):
+        c2.execute("INSERT INTO commits (sha, repo, zeitstempel_utc, autor_adresse, betreff) VALUES (?, 'x/y', '2026-01-01T00:00:00Z', 'a@b.example', ?)", (sha, b))
+    c2.execute("PRAGMA user_version = 0"); c2.commit()
+for _ in range(2):
+    db.verbinden(schreibend=True).close()
+    with db.verbinden() as c2:
+        assert dict(c2.execute("SELECT sha, betreff FROM commits")) == {"m1": "y" * 119, "m2": "y" * 119 + "…", "m3": "y" * 119 + "…"}
+        assert c2.execute("PRAGMA user_version").fetchone()[0] == 1
+db.DB = _db_alt
 print("ok: Spaltenliste auf fünf Spalten, kaputte Laufzeile reisst nichts mit; Karenz über den Sammlerpfad: ohne Push sichtbar, nicht gelistet nach 24 h weg, abgebrochener Lauf verschiebt die Grenze nicht; Paginierung: zwei Seiten gestempelt, Abbruch nach Seite 1 ohne Stempel und ohne laeufe-Zeile; zweiter Schreiber wartet an der Sperre")

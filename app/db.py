@@ -160,6 +160,15 @@ def schreibsperre(ende=None):
         yield
 
 
+BETREFF_MAX = 120   # Zeichen des Betreffs in der Datenbank, ein längerer endet mit «…»
+
+
+def betreff(nachricht):
+    """Erste Zeile der Commit-Nachricht, höchstens BETREFF_MAX Zeichen; gekürzt endet sie sichtbar mit «…» statt mitten im Wort."""
+    erste = nachricht.split("\n", 1)[0]
+    return erste if len(erste) <= BETREFF_MAX else erste[:BETREFF_MAX - 1] + "…"
+
+
 def verbinden(schreibend=False):
     if schreibend:
         DB.parent.mkdir(parents=True, exist_ok=True)
@@ -186,6 +195,13 @@ def verbinden(schreibend=False):
             for name in spalten:
                 if name in vorhanden:
                     c.execute(f"ALTER TABLE {tabelle} DROP COLUMN {name}")
+        # Einmal (2.7.1, 20.11.2026): bis dahin schnitt der Sammler den Betreff hart nach BETREFF_MAX Zeichen ab, er endete mitten im Wort.
+        # Ein Betreff mit genau BETREFF_MAX Zeichen ist fast sicher gekürzt und bekommt «…»; ein ursprünglich genau so langer verliert dabei
+        # sein letztes Zeichen. Neue Betreffe kürzt sammler.betreff() selbst, deshalb läuft das nur einmal (user_version).
+        if c.execute("PRAGMA user_version").fetchone()[0] < 1:
+            c.execute("UPDATE commits SET betreff = substr(betreff, 1, ?) || '…' WHERE length(betreff) = ? AND betreff NOT LIKE '%…'",
+                      (BETREFF_MAX - 1, BETREFF_MAX))
+            c.execute("PRAGMA user_version = 1")
         c.commit()
     else:
         c = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
