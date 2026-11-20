@@ -178,9 +178,9 @@ t = ju
 nachladen(t)
 assert zeile("n1") == (1, 0, 1, iso(t), 0) and zeile("n2") == (1, 0, 1, iso(t), 0), (zeile("n1"), zeile("n2"))
 s = web.seite(jetzt=jetzt)
-tz = s[s.index('<span class="delta bezug zeilen"'):].split("</span> Zeilen</span>")[0]
+tz = s[s.index('<span class="delta bezug zeilen"'):].split("</span></span>")[0]
 assert "2 Commits ohne Zeilenangabe" in tz and "nachgeladen" not in tz, ("nicht verfügbar ist nicht offen und nicht in der Summe", tz)
-assert tz.endswith('><span class="zplus">+11</span> / <span class="zminus">\u22125'), tz   # diese Woche b1 4/1, b2 2/2, a5 1/1, a6 1/1, b3 1/0, r1 1/0, r2 1/0; n1 und n2 ohne
+assert tz.endswith('>Zeilen: <span class="zplus">+11</span> / <span class="kwert">\u22125'), tz   # diese Woche b1 4/1, b2 2/2, a5 1/1, a6 1/1, b3 1/0, r1 1/0, r2 1/0; n1 und n2 ohne
 def schritt(zeit, geholt, versuche):
     GEHOLT.clear()
     nachladen(zeit)

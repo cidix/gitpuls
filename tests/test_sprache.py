@@ -196,7 +196,7 @@ for lang_, beschriftungen in (("de", ("gestern", "7 Tage davor", "Vorwoche zum s
         assert re.fullmatch(re.escape(b_) + r': <span class="vwert">[\d\',]+</span>(, [+\u2212]\d+ ?%)?', z_), (lang_, z_)
         assert "-" not in z_.split("</span>")[-1], ("Prozent mit echtem Minus", z_)
 css_ = (WURZEL / "app" / "web" / "style.css").read_text()
-assert ".tile.kpi .delta .vwert { color: var(--eis); }" in css_ and ".tile.kpi .delta, .tile.kpi .delta.bezug, .projekte .pkopf { font-size: .75rem; line-height: 1.45; color: var(--lbl); }" in css_
+assert ".tile.kpi .delta .vwert { color: var(--eis); }" in css_ and ".tile.kpi .delta, .tile.kpi .delta.bezug { font-size: .75rem; line-height: 1.45; color: var(--lbl); }" in css_
 # Kein Umschalter mehr: weder Knöpfe noch Skript noch Stil noch Texte.
 for s_ in (hole("/?lang=de"), hole("/?lang=en")):
     assert "data-lang=" not in s_ and "sprache" not in re.sub(r'class="[^"]*"', "", s_[:s_.index("<main>")]).lower() and 'class="seg small sprache"' not in s_

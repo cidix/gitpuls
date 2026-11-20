@@ -76,7 +76,7 @@ def a5():
 @pruefung("a6", "Punkt 6: die Wertregel der Detailzeilen überschreibt .glut nicht mehr")
 def a6():
     css = (WURZEL / "app" / "web" / "style.css").read_text()
-    regeln = re.findall(r"^([^{}\n]*\.dz > span:last-child[^{]*)\{", css, re.M)
+    regeln = re.findall(r"^([^{}\n]*\.dz > span:not\(\.dk\)[^{]*)\{[^}]*color", css, re.M)
     assert regeln and all(":not(.glut)" in r for r in regeln), regeln
 
 

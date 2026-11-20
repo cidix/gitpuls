@@ -6,6 +6,22 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-20
+
+### Added
+
+- The chart in an expanded project offers 60 days next to week, 30 days and 90 days.
+
+### Changed
+
+- History and project charts show one bar per day for up to 90 days, one per week for up to 90 weeks and one per month beyond that.
+- The running day or week appears as an outline and stays out of the peak and the average line.
+- The repo count of the Projects block sits on the right of its title line, like the period line of the history.
+- Commit subjects in an expanded project start right after a date column as wide as the longest date and wrap without a lone short word on the last line.
+- Expanded services list each timer run in aligned columns for run, last run, status and next run, with the run name shortened by the service prefix.
+- The meta lines of the week and 30-day tiles read as label and value, like the comparison line above them.
+- In dark mode, the selected segment of every switch shows white text on a deeper blue.
+
 ## [2.5.2] - 2026-11-15
 
 ### Changed

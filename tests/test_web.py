@@ -76,8 +76,14 @@ beispiel["dienste"][0]["container"][0]["neustarts"] = 2
 h = web.server_html(beispiel, jetzt)
 sammler = h[h.index("gitpuls-sammler"):h.index("gitpuls-deploy", h.index("gitpuls-sammler"))]
 assert "seit Neustart" in sammler and "nicht gelaufen" in sammler and "sauber beendet" not in sammler and "Exit" not in sammler and "läuft seit" not in sammler, sammler
-preise = h[h.index("beobachter-lauf: läuft seit"):h.index("nach dem Lauf")]
-assert "Exit" not in preise, preise
+preise = h[h.index('title="beobachter-lauf"'):h.index("nach dem Lauf")]
+assert "seit " in preise and ">läuft<" in preise and "Exit" not in preise, preise
+# Laufzeilen als Spalten (20.11.2026): Lauf ohne das Präfix des Compose-Projekts (Ordner des Checkouts, /srv/gitpuls), voller Name im title;
+# ohne Treffer (beobachter-lauf im Checkout /srv/preisbeobachter) bleibt der volle Name. Fünf Zellen je Laufzeile, alle auf dem Raster.
+assert '<div class="dz lauf"><span class="dk">Lauf</span><span title="gitpuls-sammler" translate="no">sammler</span><span>seit Neustart ' in h, h[h.index('title="gitpuls-sammler"') - 80:][:300]
+assert '<span title="gitpuls-deploy" translate="no">deploy</span>' in h and '<span title="beobachter-lauf" translate="no">beobachter-lauf</span>' in h
+import re  # noqa: E402
+assert all(z.count("<span") == 5 for z in re.findall(r'<div class="dz lauf">(.*?)</div>', h)), re.findall(r'<div class="dz lauf">(.*?)</div>', h)[:2]
 assert "2× von Docker neu gestartet" in h and "Neustarts" not in h
 assert "glut" not in h and "noch nie" not in h
 satz, ab = web.server_lage(beispiel)
@@ -123,10 +129,10 @@ assert "Summe 3" in s and 'Serie und Rekorde <span class="lbl">(seit ' in s, "R�
 # der laufenden Woche steht ungedämpft in der Liste, zählt im Kopf aber als ohne; kein blauer Rahmen mehr.
 import re
 def projekt_meta(s):
-    """Metazeile unter dem Titel «Projekte» (26.09.2026): (gesamt, aktiv) aus «14 Repos · 9 diese Woche aktiv» oder «14 repos · 9 active
-    this week», Wert in .kwert; der Singular ist Teil der Erwartung (Wortlaut fest, nicht aus den Tabellen)."""
-    m = re.search(r'<h3 class="titel">(?:Projekte|Projects)</h3>\n  <p class="delta bezug pkopf"><span class="kwert">(\d+)</span> (Repos?|repos?) · '
-                  r'<span class="kwert">(\d+)</span> (diese Woche aktiv|active this week)</p>', s)
+    """Zählzeile rechts in der Titelzeile «Projekte» (20.11.2026, wie die Kopfzeile des Rückblicks): (gesamt, aktiv) aus «14 Repos · 9 diese
+    Woche aktiv» oder «14 repos · 9 active this week»; der Singular ist Teil der Erwartung (Wortlaut fest, nicht aus den Tabellen)."""
+    m = re.search(r'<h3 class="titel">(?:Projekte|Projects) <span class="lbl">(\d+) (Repos?|repos?) · '
+                  r'(\d+) (diese Woche aktiv|active this week)</span></h3>', s)
     assert m, "Metazeile fehlt"
     n = int(m.group(1))
     assert m.group(2).lower() == ("repo" if n == 1 else "repos"), m.group(0)
@@ -156,7 +162,7 @@ c.execute("INSERT INTO zweige (repo, name, ahead, behind, letzter_utc) VALUES ('
 c.commit(); c.close()
 s = seite()
 assert s.count('<details class="prow"') == 2 and "gedaempft" not in s and s.index('data-repo="fernwerk-studio/neu"') < s.index('data-repo="fernwerk-studio/ruhig"'), "neu (heute) vor ruhig (vor 7 Tagen)"
-assert [(t, n, g) for t, n, g, _ in gruppen_von(s)] == [("aktiv", 1, False), ("Ohne Commits diese Woche", 1, True)] and "Repos:" not in s, gruppen_von(s)
+assert [(t, n, g) for t, n, g, _ in gruppen_von(s)] == [("aktiv", 1, False), ("Ohne Commits diese Woche", 1, True)] and not re.search(r"\d Repos: \d+ mit", s), gruppen_von(s)
 assert "hat-befund" not in s and "Zweig wip +1" in s and "Zweig wip in ruhig: 1 Commit vor main" in s
 c = db.verbinden(schreibend=True); c.execute("DELETE FROM zweige"); c.commit(); c.close()
 
@@ -278,15 +284,15 @@ def repos_gelistet():
 
 
 def pruefe_gesamt(s):
-    """Metazeile «N Repos · M diese Woche aktiv» und die Zahl der Gruppe «Ohne Commits diese Woche» (seit 26.09.2026; vorher N im Titel
-    und je Gruppe eine Zahl): N aus eigenem SQL, M plus die Gruppenzahl ergibt N, die Liste hat N Zeilen, die aktive Gruppe
-    M, und im Titel steht keine Zahl mehr."""
+    """Zählzeile «N Repos · M diese Woche aktiv» rechts im Titel (seit 20.11.2026, vorher links darunter) und die Zahl der Gruppe «Ohne Commits
+    diese Woche»: N aus eigenem SQL, M plus die Gruppenzahl ergibt N, die Liste hat N Zeilen, die aktive Gruppe M, und neben der Zählzeile
+    steht keine weitere Zahl im Titel."""
     g = repos_gelistet()
     gesamt, aktiv = projekt_meta(s)
     gruppen = gruppen_von(s)
     zeilen_aktiv = sum(len(r) for t_, _, _, r in gruppen if t_ == "aktiv")
     ohne = sum(n for t_, n, _, _ in gruppen if t_ == "Ohne Commits diese Woche")
-    assert '<h3 class="titel">Projekte</h3>' in s and gesamt == g == aktiv + ohne == s.count('<details class="prow') and aktiv == zeilen_aktiv, (gesamt, aktiv, ohne, g, zeilen_aktiv)
+    assert re.search(r'<h3 class="titel">Projekte <span class="lbl">[^<]*</span></h3>', s) and gesamt == g == aktiv + ohne == s.count('<details class="prow') and aktiv == zeilen_aktiv, (gesamt, aktiv, ohne, g, zeilen_aktiv)
     return g
 
 
@@ -501,7 +507,7 @@ aktiv_w = [r for r in reihenfolge if any(montag_roh <= datetime.fromisoformat(t.
                                          for (t,) in db.verbinden().execute("SELECT zeitstempel_utc FROM commits WHERE repo = ?", (r,)))]
 erwartet_gr = [(t, rs) for t, rs in (("aktiv", aktiv_w), ("Ohne Commits diese Woche", [r for r in reihenfolge if r not in aktiv_w])) if rs]
 assert [(t, rs) for t, _, _, rs in gr] == erwartet_gr and [n for _, n, _, _ in gr] == [len(rs) for _, rs in erwartet_gr] and mit_roh == len(aktiv_w), (gr, erwartet_gr)
-assert [g for _, _, g, _ in gr] == [False] + [True] * (len(gr) - 1) and "Repos:" not in s, "Linie nur über der zweiten Gruppe, keine Zählzeile"
+assert [g for _, _, g, _ in gr] == [False] + [True] * (len(gr) - 1) and not re.search(r"\d Repos: \d+ mit", s), "Linie nur über der zweiten Gruppe, keine Zählzeile"
 assert all(sorted(rs, key=lambda r: letzte.get(r, ""), reverse=True) == rs for _, _, _, rs in gr), "in der Gruppe nach letztem Commit"
 assert "Zweig test/x in still: 1 Commit vor main" in s, "Befund im Kopf"
 # Mikrokurve: eine je Zeile, 120x20 (seit 27.09.2026, vorher 96x20), ohne Zeiger-Attribute, ohne Achse, ohne Schrift; im Kopf der Zeile keine Zeigerstelle.
@@ -562,8 +568,8 @@ assert re.search(r"grid-template-columns: minmax\(0, 1fr\) [\d.]+rem [\d.]+rem 1
 assert "Zweig test/x in still: 1 Commit vor main, 118 dahinter" in s, "der verborgene Befund steht im Kopf der Zone"
 # Kopf der Projektliste in der Fläche (seit 13.09.2026): der Abschnitt ist die Fläche wie der Rückblick, Titel
 # und Zählzeile stehen darin vor der Liste; die Liste selbst trägt keine zweite Fläche.
-kopf_zeilen = [f'<section class="card {name}">\n  <h3 class="titel">{titel} <span class="lbl"' for name, titel in (("rueckblick", "Rückblick"),)]
-kopf_zeilen.append(f'<section class="card projekte">\n  <h3 class="titel">Projekte</h3>\n  <p class="delta bezug pkopf"><span class="kwert">{pruefe_gesamt(s)}</span>')
+kopf_zeilen = [f'<section class="card {name}">\n  <h3 class="titel">{titel} <span class="lbl"' for name, titel in (("rueckblick", "Rückblick"), ("projekte", "Projekte"))]
+kopf_zeilen.append(f'<section class="card projekte">\n  <h3 class="titel">Projekte <span class="lbl">{pruefe_gesamt(s)} ')
 assert all(k in s for k in kopf_zeilen), [k for k in kopf_zeilen if k not in s]
 assert s.index('<section class="card projekte">') < s.index('class="titel">Projekte') < s.index('<div class="pliste">') < s.index("</section>", s.index('<section class="card projekte">'))
 assert not any(d in " ".join(regeln[".pliste"]) for d in ("background", "border", "padding")), regeln[".pliste"]
@@ -681,8 +687,10 @@ with db.verbinden() as c2:
         assert f'<ul class="commits">{erwartet_li}</ul>' in detail, (r, erwartet_li)
         assert '<dl class="pmeta">' in detail and 'class="chips"' not in detail, r
 assert zeile_von(s, "fernwerk-studio/still").index('class="zbox"') < zeile_von(s, "fernwerk-studio/still").index('class="pmeta"') and "data-stellen" in zeile_von(s, "fernwerk-studio/still"), "Kurve mit Zeiger vor dem Stand"
-commits_li = " ".join(regeln[".commits li"])
-assert "grid-template-columns: 3.75rem minmax(0, 1fr)" in commits_li and "column-gap:" in commits_li, commits_li
+# Seit 20.11.2026: die Datumsspalte so breit wie das breiteste Datum (Subgrid auf max-content), --s3 bis zum Betreff, Betreff mit text-wrap: pretty.
+commits_ul, commits_li = " ".join(regeln[".commits"]), " ".join(regeln[".commits li"])
+assert "grid-template-columns: max-content minmax(0, 1fr)" in commits_ul and "column-gap: var(--s3)" in commits_ul, commits_ul
+assert "grid-template-columns: subgrid" in commits_li and "text-wrap: pretty" in " ".join(regeln[".commits li > span:last-child"]), commits_li
 assert "white-space: nowrap" in " ".join(regeln[".commits .datum"]), "das Datum bricht nicht in den Betreff"
 assert zeile_von(s, "fernwerk-studio/still").count('<div class="pstand">') == 1, "Stand und Commits als eine Spalte neben der Kurve"
 assert "Kurve je Repo" not in s, "Erklärzeile unter der Liste entfällt"
@@ -695,10 +703,10 @@ assert 'class="zbox"' in _ar and _ar.count('<rect class="b leer"') == heute_roh.
 for r in ("fernwerk-studio/still", "fernwerk-studio/archiv"):
     _det = zeile_von(s, r)[zeile_von(s, r).index('class="pdetail"'):]
     _navs = re.findall(r'<nav class="seg klein umschalter" aria-label="Zeitraum der Grafik" data-gruppe="pd">(.*?)</nav>', _det)
-    assert len(_navs) == 1 and re.findall(r">([^<]+)</button>", _navs[0]) == ["Woche", "30 Tage", "90 Tage"], (r, _navs)
+    assert len(_navs) == 1 and re.findall(r">([^<]+)</button>", _navs[0]) == ["Woche", "30 Tage", "60 Tage", "90 Tage"], (r, _navs)
     assert re.findall(r'data-fenster="(\w+)" aria-pressed="true"', _navs[0]) == ["7"], _navs
-    assert re.findall(r'<div class="fenster" data-gruppe="pd" data-fenster="(\w+)"( hidden)?>', _det) == [("7", ""), ("30", " hidden"), ("90", " hidden")], r
-    assert _det.index("data-gruppe=\"pd\">") < _det.index('<div class="stapel">') and _det.count('class="zbox"') == 3, r
+    assert re.findall(r'<div class="fenster" data-gruppe="pd" data-fenster="(\w+)"( hidden)?>', _det) == [("7", ""), ("30", " hidden"), ("60", " hidden"), ("90", " hidden")], r
+    assert _det.index("data-gruppe=\"pd\">") < _det.index('<div class="stapel">') and _det.count('class="zbox"') == 4, r
 assert "addEventListener('toggle'" in s, "Zeiger im Detail erst beim ersten Öffnen"
 c = db.verbinden(schreibend=True); c.execute("DELETE FROM zweige"); c.execute("DELETE FROM commits WHERE sha IN ('r1', 'r2', 'u1')"); c.execute("DELETE FROM repos WHERE repo IN ('fernwerk-studio/still', 'fernwerk-studio/archiv')"); c.commit(); c.close()
 # 2d: Container-Eintrag ohne Schlüssel bild (Schreiber vor dem Fix bei «fehlt», Störung 11.09.2026 nach der
@@ -748,7 +756,7 @@ import io, contextlib
 MARKER = {"Serverstand": 'class="stand"', "Server-Lage": '<div class="tile lage"><p class="f">', "Dienste": 'details class="dienst"',
           "Maschine": ">Produkt<", "Installiert": ">Docker<", "Firewall": ">Zweite Reihe<", "Updates": ">Pakete<",
           "Sammelstand": "GitHub-Daten von", "GitHub-Lage": 'class="nums"', "Kachel": 'class="card tile kpi"', "Repozahl": 'class="n repos-spalte"',
-          "Projekte": "<h3 class=\"titel\">Projekte</h3>", "Rückblick": "Rückblick <span",
+          "Projekte": "<h3 class=\"titel\">Projekte <span", "Rückblick": "Rückblick <span",
           "Fusszeile": '<footer class="fusszeile"><span>© '}
 def kaputt_fn(*a, **k):
     raise RuntimeError("künstlich")
@@ -1092,7 +1100,7 @@ assert "Achse bis 1" in nullen and nullen.count('y1="260.0"') >= 1 and "260.0 L3
 s = seite()
 assert "Ruht:" not in s and s.count('<details class="prow"') == 2 and "gedaempft" not in s, "neu und ruhig sind aktiv: zwei ungedämpfte Zeilen, keine Ruhezeile"
 assert '<div class="pzeile"' not in s and 'class="pzeilen"' not in s, "kein eigener Block mehr"
-assert s.count('class="chart') == 4 + 2 * 3 + 5, "vier Kachelfenster mit Kurve, zwei Projektdetails (neu, ruhig) mit je 7, 30 und 90 Tagen, fünf Fenster des Rückblicks"
+assert s.count('class="chart') == 4 + 2 * 4 + 5, "vier Kachelfenster mit Kurve, zwei Projektdetails (neu, ruhig) mit je Woche, 30, 60 und 90 Tagen, fünf Fenster des Rückblicks"
 
 # Karenz über den Sammlerpfad: geloescht zuletzt vor 50 Stunden gelistet, aussetzer vor 26 Stunden (fehlt im
 # jüngsten Lauf vor 23 Stunden, also EIN verpasster Lauf innerhalb der Karenz), neu und ruhig in jedem Lauf.
@@ -1320,11 +1328,11 @@ assert s_u.count('<div class="wert mit-nav"><span class="big mid">') == 4, "Umsc
 # Gemerkte Wahl vor dem ersten Bild (30.09.2026): Kopfskript und Regeln stehen im head vor dem Stylesheet, die Listen kommen aus UMSCHALTER und
 # RUECKBLICK, jedes Fenster hat seine Zeigeregel, ?rueckblick= geht vor, und das Skript am Ende führt das Attribut bei jedem Wechsel nach.
 kopf_u = s_u[:s_u.index("</head>")]
-assert kopf_u.index(web.WAHL_KOPF) < kopf_u.index('rel="stylesheet"') and '{"k2":["7","woche"],"k3":["30","monat"],"pd":["7","30","90"],"rb":["7","30","60","90","beginn"]}' in web.WAHL_KOPF
+assert kopf_u.index(web.WAHL_KOPF) < kopf_u.index('rel="stylesheet"') and '{"k2":["7","woche"],"k3":["30","monat"],"pd":["7","30","60","90"],"rb":["7","30","60","90","beginn"]}' in web.WAHL_KOPF
 for g_, fs_ in web.WAHL.items():
     for f_ in fs_:
         assert (f'html[data-{g_}="{f_}"] .fenster[data-gruppe="{g_}"][data-fenster="{f_}"]' if g_ != "rb" else f'html[data-rb="{f_}"] .rueckblick .fenster[data-fenster="{f_}"]') in web.WAHL_KOPF, (g_, f_)
-assert all(f'html[data-pd="{f_}"] nav[data-gruppe="pd"] button[data-fenster="{f_}"]' in web.WAHL_KOPF for f_ in ("7", "30", "90")), "gedrückter Knopf im Detail vor dem Skript"
+assert all(f'html[data-pd="{f_}"] nav[data-gruppe="pd"] button[data-fenster="{f_}"]' in web.WAHL_KOPF for f_ in ("7", "30", "60", "90")), "gedrückter Knopf im Detail vor dem Skript"
 assert "localStorage.getItem('gitpuls-'+g)" in web.SKRIPT and "['k2','k3','pd'].forEach" in web.SKRIPT and "if(!n.closest('.fenster'))" in web.SKRIPT
 assert "has('rueckblick'))continue" in web.WAHL_KOPF and "try{" in web.WAHL_KOPF and "}catch(e){}" in web.WAHL_KOPF
 assert "wurzel.setAttribute('data-'+g,f)" in web.SKRIPT and "if(nav.dataset.speicher)wurzel.setAttribute('data-rb',f)" in web.SKRIPT
@@ -1699,13 +1707,23 @@ assert rb_kopf(rb) == {"7": f"7 Tage, 10.–16.09.2026, Summe {n7}", "30": f"30 
 # Vorauswahl 30 Tage: Grafik, Kopfzeile und Reiter; die zwei anderen hidden, im Fluss
 assert sichtbar(s_r) == ["30"] and '<span class="fenster" data-fenster="30">' in rb and rb.count(" hidden>") == 8, sichtbar(s_r)
 assert re.findall(r'data-fenster="(\w+)" aria-pressed="true">([^<]*)<', rb) == [("30", "30 Tage")] and "seit Beginn</button>" in rb and "Jahr" not in rb
-# 30 Tage je Tag (30 Punkte), 90 Tage und seit Beginn je Kalenderwoche; Werte, Zeigerzeile, Durchschnitt und Spitze aus den Rohzeilen
-st30 = stellen_von(rb_teil(rb, "30"))
-# Die letzte Stelle läuft noch (30.09.2026) und sagt es in der Zeigerzeile.
-assert [f[1] for f in st30] == [f"{d30 + timedelta(days=i):%d.%m.%Y}" for i in range(29)] + ["16.09.2026 · läuft noch"] and [int(f[2]) for f in st30] == [sum(1 for d in zh_tage if d == d30 + timedelta(days=i)) for i in range(30)], st30
-assert f"Commits je Tag, Summe über alle Repos" in rb_teil(rb, "30") and f"Ø {n30 / 30:.1f}" in rb_teil(rb, "30") and "ab dem ersten Tag" not in rb_teil(rb, "30") and ">3 am 14.09.</span>" in rb_teil(rb, "30")
+# Seit 20.11.2026 (BALKEN_MAX) bis 90 Tage ein Balken je Tag, darüber je Kalenderwoche: 30 und 90 Tage je Tag, seit Beginn (149 Tage) je
+# Woche. Werte, Zeigerzeile, Durchschnitt und Spitze aus den Rohzeilen. Die letzte Stelle läuft noch (30.09.2026) und sagt es in der
+# Zeigerzeile; der laufende Tag ist angebrochen, steht als Umriss und zählt weder für die Spitze noch für Ø.
+oben_von = lambda g: int(re.search(r'<span style="top:0.0%">(\d+)</span>', g).group(1))
+for f, von in (("30", d30), ("90", d90)):
+    n_t = (dh - von).days + 1
+    st_ = stellen_von(rb_teil(rb, f))
+    werte_ = [sum(1 for d in zh_tage if d == von + timedelta(days=i)) for i in range(n_t)]
+    assert [x[1] for x in st_] == [f"{von + timedelta(days=i):%d.%m.%Y}" for i in range(n_t - 1)] + ["16.09.2026 · läuft noch"] and [int(x[2]) for x in st_] == werte_, (f, st_[:3])
+    voll_ = werte_[:-1]
+    i_sp = max(range(len(voll_)), key=lambda i: voll_[i])
+    assert "Commits je Tag, Summe über alle Repos" in rb_teil(rb, f) and f"Ø {sum(voll_) / len(voll_):.1f} je Tag ohne angebrochene" in rb_teil(rb, f) and "ab dem ersten Tag" not in rb_teil(rb, f), (f, rb_teil(rb, f)[-300:])
+    assert f">{voll_[i_sp]} am {von + timedelta(days=i_sp):%d.%m.}</span>" in rb_teil(rb, f), (f, re.findall(r'class="pmarke[^>]*>([^<]*)', rb_teil(rb, f)))
+    pruefe_grafikbalken(rb_teil(rb, f), werte_, oben_von(rb_teil(rb, f)), 208, angebrochen={n_t - 1}, laufend=True, laeuft=True)
+assert ">3 am 14.09.</span>" in rb_teil(rb, "30") and len(stellen_von(rb_teil(rb, "90"))) == 90
 # Seit dem 20.09.2026 ohne Kalenderwochen-Bezeichner: Zeigerstellen, Achsen und Spitze nennen nur noch Daten.
-for f, von, montag, name in (("90", d90, date(2026, 6, 15), "19.–21.06."), ("beginn", d0, date(2026, 4, 20), "21.–26.04.")):
+for f, von, montag, name in (("beginn", d0, date(2026, 4, 20), "21.–26.04."),):
     wochen_n = (dh - montag).days // 7 + 1
     erwartet_w = [sum(1 for d in zh_tage if von <= d <= dh and montag + timedelta(weeks=w) <= d < montag + timedelta(weeks=w + 1)) for w in range(wochen_n)]
     st = stellen_von(rb_teil(rb, f))
@@ -1715,15 +1733,13 @@ for f, von, montag, name in (("90", d90, date(2026, 6, 15), "19.–21.06."), ("b
     voll_w = [erwartet_w[w] for w in range(wochen_n) if montag + timedelta(weeks=w) >= von and w != wochen_n - 1]
     assert "Commits je Woche, Summe über alle Repos" in teil and f"Ø {sum(voll_w) / len(voll_w):.1f} je Woche ohne angebrochene" in teil and 'title="Wochen ab Montag, Zone ' in teil, (f, teil[-300:])
     assert ">30 ab 06.07.</span>" in teil and "KW" not in teil and f'<span style="left:0%">{von:%d.%m.%Y}</span>' in teil and '<span style="left:100%">16.09.2026</span>' in teil, f
-# Balken statt Linie (27.09.2026) in allen drei Reitern gegen die Rohwerte; Achse aus der Beschriftung oben. 30 Tage: der laufende Tag in
-# Akzentfarbe; 90 Tage und seit Beginn: die laufende Woche und eine vom Fensterrand geschnittene erste als Umriss.
-oben_von = lambda g: int(re.search(r'<span style="top:0.0%">(\d+)</span>', g).group(1))
-pruefe_grafikbalken(rb_teil(rb, "30"), [int(f[2]) for f in st30], oben_von(rb_teil(rb, "30")), 208, laufend=True, laeuft=True)
-for f, von, montag in (("90", d90, date(2026, 6, 15)), ("beginn", d0, date(2026, 4, 20))):
+# Balken statt Linie (27.09.2026) gegen die Rohwerte; Achse aus der Beschriftung oben. Seit Beginn: die laufende Woche und eine vom
+# Fensterrand geschnittene erste als Umriss (die Tagesfenster sind oben geprüft).
+for f, von, montag in (("beginn", d0, date(2026, 4, 20)),):
     w_ = [int(x[2]) for x in stellen_von(rb_teil(rb, f))]
     pruefe_grafikbalken(rb_teil(rb, f), w_, oben_von(rb_teil(rb, f)), 208, angebrochen=({0} if montag < von else set()) | {len(w_) - 1}, laeuft=True)
 assert rb.count('class="sw balken"') == 5 and "<polygon" not in rb[:rb.index("Serie und Rekorde")], "Legende mit Balkenzeichen, keine Fläche"
-assert web.TAGESPUNKTE_MAX == 30, "Grenze aus der Messung vom 13.09.2026: 9.3 px je Tag bei 430 px"
+assert web.BALKEN_MAX == 90, "höchstens 90 Balken je Grafik (20.11.2026)"
 # Serie und Rekorde bleiben über alle Daten und stehen einmal, ausserhalb der Fenster; seit dem 20.09.2026 mit
 # eigener Titelstufe auf der Höhe der übrigen Blocktitel (h3.titel, Gewicht und Grösse wie Rückblick und Projekte),
 # nicht mehr als gedämpfte Zeile. Die beste Woche steht als Datumsspanne, nicht als 2026-W28.
@@ -1800,7 +1816,7 @@ c.execute("INSERT INTO commits (sha, repo, zeitstempel_utc, autor_adresse) VALUE
 c.commit(); c.close()
 re1 = web.seite(jetzt=jr)
 assert rb_kopf(re1) == {**{f: "1 Tag, 16.09.2026, Summe 1" for f in ("7", "30", "60", "90")}, "beginn": "seit Beginn, 16.09.2026, Summe 1"}, rb_kopf(re1)
-assert re1.count('<rect class="b jetzt laeuft" x="150.0" y="0.00" width="700.0" height="260.00"><title>läuft noch</title></rect>') == 5 and "Ø" not in re1[re1.index('<section class="card rueckblick">'):re1.index("Serie und Rekorde")], "ein Tag: ein Balken in Akzentfarbe, kein Durchschnitt"
+assert len(re.findall(r'<rect class="b teil laeuft" x="150.0" y="0.94" width="700.0" height="258.1\d"><title>läuft noch</title></rect>', re1)) == 5 and "Ø" not in re1[re1.index('<section class="card rueckblick">'):re1.index("Serie und Rekorde")], "ein Tag: ein Umriss in Akzentfarbe, kein Durchschnitt"
 db.DB = Path(tempfile.mkdtemp()) / "rueckblick-leer.db"
 db.verbinden(schreibend=True).close()
 assert set(rb_kopf(web.seite(jetzt=jr)).values()) == {"noch keine Daten"} and len(rb_kopf(web.seite(jetzt=jr))) == 5
@@ -1823,7 +1839,7 @@ c.commit(); c.close()
 s_t = web.seite(jetzt=jt)
 rt = s_t[s_t.index('<section class="card rueckblick">'):s_t.index('</section>', s_t.index('<section class="card rueckblick">'))]
 tage_t = [t.date() for t in roh_t]
-for f, von in (("90", date(2026, 6, 17)), ("beginn", date(2026, 6, 3))):
+for f, von in (("beginn", date(2026, 6, 3)),):
     montag = von - timedelta(days=von.weekday())
     n_w = (jt.date() - montag).days // 7 + 1
     w_roh = [sum(1 for d in tage_t if von <= d <= jt.date() and montag + timedelta(weeks=w) <= d < montag + timedelta(weeks=w + 1)) for w in range(n_w)]
@@ -1842,13 +1858,17 @@ for f, von in (("90", date(2026, 6, 17)), ("beginn", date(2026, 6, 3))):
     assert all(abs(m - float(x[0])) < .11 for m, x in zip(mitten_t, stellen_von(teil))), (f, "Zeiger rastet auf die Balkenmitte")
     assert re.findall(r'<line class="hz" x1="0" y1="([\d.]+)"', teil) == [f"{260 - 260 * sum(w_roh[w] for w in voll_i) / len(voll_i) / oben_t:.1f}"], f
     assert [x[1] for x in stellen_von(teil)][0].endswith(ch_spanne(von, montag + timedelta(days=6))) and stellen_von(teil)[-1][1] == "14.09. · läuft noch", f
-assert "b teil" not in rb_teil(rt, "30") and 'class="b jetzt laeuft"' in rb_teil(rt, "30") and ">60 am 14.09.</span>" in rb_teil(rt, "30") and "Ø" in rb_teil(rt, "30"), "Tagesauflösung unverändert, der laufende Tag zählt"
-# Unter zwei vollen Wochen entfallen Spitze und Linie. Im Rückblick tritt das nicht ein: mit mehr als 30 Tagen liegen mindestens drei
-# volle Wochen im Fenster, gezählt für jeden Anfangswochentag und jede Länge bis 120 Tage. Belegt ist der Fall an der Detailkurve.
+# Seit 20.11.2026 auch je Tag: der laufende Tag mit 60 Commits ist der grösste, steht als Umriss und ist weder Spitze noch Teil von Ø.
+for f in ("30", "90"):
+    tt = [sum(1 for d in tage_t if d == jt.date() - timedelta(days=int(f) - 1 - i)) for i in range(int(f))]
+    assert tt[-1] == 60 == max(tt) and 'class="b teil laeuft"' in rb_teil(rt, f) and ">60 am" not in rb_teil(rt, f) and "b jetzt" not in rb_teil(rt, f), f
+    assert f">{max(tt[:-1])} am " in rb_teil(rt, f) and f"Ø {sum(tt[:-1]) / (len(tt) - 1):.1f} je Tag ohne angebrochene" in rb_teil(rt, f), (f, rb_teil(rt, f)[-260:])
+# Unter zwei vollen Wochen entfallen Spitze und Linie. Im Rückblick tritt das nicht ein: mit mehr als 90 Tagen liegen mindestens zwölf
+# volle Wochen im Fenster, gezählt für jeden Anfangswochentag und jede Länge bis 120 Tage.
 min_voll = min(sum(1 for w in range(((s0 + timedelta(days=n0 - 1)) - (s0 - timedelta(days=s0.weekday()))).days // 7 + 1)
                    if s0 - timedelta(days=s0.weekday()) + timedelta(weeks=w) >= s0 and (s0 - timedelta(days=s0.weekday()) + timedelta(weeks=w + 1)) <= s0 + timedelta(days=n0 - 1))
-               for s0 in (date(2026, 6, 1) + timedelta(days=d) for d in range(7)) for n0 in range(web.TAGESPUNKTE_MAX + 1, 121))
-assert min_voll == 3, min_voll
+               for s0 in (date(2026, 6, 1) + timedelta(days=d) for d in range(7)) for n0 in range(web.BALKEN_MAX + 1, 121))
+assert min_voll == 12, min_voll
 assert web.ohne_angebrochene([4, 9], {1}) == (None, None) and web.ohne_angebrochene([4, 6, 9], {2}) == (1, 5.0)
 db.DB = haupt_db
 with db.verbinden() as c2:
@@ -2044,19 +2064,22 @@ _k = web.karte_kurve([4, 0, 0, 0, 0, 0, 0], date(2026, 9, 14))
 assert "pjetzt" not in _k and "pmarke" not in _k and _k.count("<rect") == 1 and _k.count('<rect class="b jetzt"') == 1 and _k.count('class="platz"') == 7, _k
 _k = web.karte_kurve([1, 0, 2, 0, 0, 3, 1], date(2026, 9, 20))
 assert _k.count("<rect") == 7 and _k.count('<rect class="b jetzt"') == 1 and _k.count('<rect class="b leer"') == 3 and len(stellen_von(_k)) == 7, _k
-# 30 und 90 Tage im Detail (03.10.2026): 30 Tagesbalken, der letzte heute in Akzentfarbe, Zeigerzeile mit Wochentag und Datum; 90 Tage als
-# Kalenderwochen ab Montag wie im Rückblick, die vom Fensterrand geschnittene erste und die laufende als Umriss, Summen nur über die Tage im Fenster.
+# 30, 60 und 90 Tage im Detail (03.10.2026, 60 und 90 je Tag seit 20.11.2026): ein Balken je Kalendertag, der letzte heute als Umriss in
+# Akzentfarbe mit «läuft noch», Zeigerzeile mit Wochentag und Datum; mehr als 90 Tage nimmt tage_kurve nicht an.
 _t30 = [0] * 29 + [2]
 _t30[0] = 1
 _k = web.tage_kurve(_t30, date(2026, 10, 3))
-assert _k.count("<rect") == 30 and _k.count('<rect class="b jetzt"') == 1 and len(stellen_von(_k)) == 30 and "Commits je Tag · Achse bis 2" in _k, _k
-assert stellen_von(_k)[0][1:3] == ["Fr.,\u00a04.9.", "1"] and stellen_von(_k)[-1][1:3] == ["Sa.,\u00a03.10.", "2"], stellen_von(_k)
-_t90 = [1] * 90   # 06.07.2026 (Mo) bis 03.10.2026 (Sa): zwölf volle Wochen, die laufende Mo bis Sa als Umriss
-_k = web.tage_kurve(_t90, date(2026, 10, 3))
-assert [f[2] for f in stellen_von(_k)] == ["7"] * 12 + ["6"] and _k.count('class="b teil') == 1 and "Commits je Woche" in _k, stellen_von(_k)
-assert stellen_von(_k)[0][1] == "06.–12.07." and stellen_von(_k)[-1][1].endswith("03.10. · läuft noch"), stellen_von(_k)
-_k = web.tage_kurve(_t90, date(2026, 10, 4))   # 07.07. (Di) bis 04.10. (So): die erste Woche vom Rand geschnitten, sechs Tage
-assert [f[2] for f in stellen_von(_k)] == ["6"] + ["7"] * 12 and _k.count('class="b teil') == 2 and stellen_von(_k)[0][1] == "07.–12.07.", stellen_von(_k)
+assert _k.count("<rect") == 30 and _k.count('<rect class="b teil laeuft"') == 1 and "b jetzt" not in _k and len(stellen_von(_k)) == 30 and "Commits je Tag · Achse bis 2" in _k, _k
+assert stellen_von(_k)[0][1:3] == ["Fr.,\u00a04.9.", "1"] and stellen_von(_k)[-1][1:3] == ["Sa.,\u00a03.10. · läuft noch", "2"], stellen_von(_k)
+for _n in (60, 90):
+    _k = web.tage_kurve([1] * _n, date(2026, 10, 3))
+    assert [f[2] for f in stellen_von(_k)] == ["1"] * _n and _k.count("<rect") == _n and _k.count('class="b teil') == 1 and "Commits je Tag" in _k, (_n, stellen_von(_k)[:3])
+    assert stellen_von(_k)[0][1] == ("Mi.,\u00a05.8." if _n == 60 else "Mo.,\u00a06.7.") and stellen_von(_k)[-1][1] == "Sa.,\u00a03.10. · läuft noch", stellen_von(_k)[0]
+try:
+    web.tage_kurve([1] * 91, date(2026, 10, 3))
+    raise SystemExit("91 Tage dürfen nicht als Tage gezeichnet werden")
+except AssertionError:
+    pass
 _k = web.kurve([4], "", "", klasse="mini", laufend=True, balken=True)
 _zf = _k[_k.index('<div class="zf">'):_k.index('<div class="xlab">')]
 assert _zf.index("</svg>") < _zf.index('class="pmarke"') < _zf.index("</div>", _zf.index("</svg>")), ("die Marke steht in .zf", _zf[-400:])
@@ -2140,7 +2163,7 @@ assert not re.search(r"\d{4}-W\d{2}", s) and not re.search(r"\bKW\s*\d", s), re.
 with db.verbinden() as c2:
     assert web.wochenreihen(c2, jetzt_zh.date(), jetzt_zh)[0][-1] == jetzt_zh.date().strftime("%G-W%V"), "die internen Schlüssel bleiben"
 montag_s = jetzt_zh.date() - timedelta(days=jetzt_zh.weekday())
-assert KOPF_DE in s and "Diese Woche aktiv" not in s and "Repos:" not in s
+assert KOPF_DE in s and "Diese Woche aktiv" not in s and not re.search(r"\d Repos: \d+ mit", s)
 for r in gelistet_roh():
     kopf_r = summary_von(s, r)
     assert f'title="Woche ab {montag_s:%d.%m.}, Vorwoche zum selben Zeitpunkt' in kopf_r, (r, kopf_r)
@@ -2217,7 +2240,7 @@ assert re.search(r"\.fbalken[^{]*\{\s*display: none", schmal_480), schmal_480[:4
 # Das Aufklappdetail der Dienste trägt seine Werte in voller Textfarbe, nur die Beschriftungsspalte bleibt gedämpft
 # (dieselbe Ordnung wie .mz in den Fussblöcken seit f9caaee). Kindkombinator, damit die Warnfarbe im Wert gewinnt.
 # Seit 10.10.2026 mit :not(.glut): trägt der Wert selbst die Warnfarbe (fehlender Timer), bleibt sie stehen.
-assert "color: var(--txt)" in " ".join(regeln[".dz > span:last-child:not(.glut)"]), regeln.get(".dz > span:last-child:not(.glut)")
+assert "color: var(--txt)" in " ".join(regeln[".dz > span:not(.dk):not(.glut)"]), regeln.get(".dz > span:not(.dk):not(.glut)")
 assert "color: var(--lbl)" in " ".join(regeln[".dk"]) and ".dz span:last-child" not in regeln, "Nachfahre würde den Glut-Span schlagen"
 
 # ---- Ablese-Zeiger -------------------------------------------------------------------------------
@@ -2289,7 +2312,7 @@ assert "touch-action" not in s + (web.WEB / "style.css").read_text()
 # Tagesgrafik jedes Repos, Rückblick) die Fehlerzeilen, die Seite bleibt ganz und die
 # übrigen Blöcke stehen, auch Zeilen, Mikrokurven und Stand der Projektliste. Die Zahl der Repos mit Kurve aus den Rohdaten.
 mit_kurve = len(gelistet_roh())   # seit 27.09.2026 hat jedes Repo seine Tagesgrafik, auch ohne Commit
-grafikbloecke = 4 + 3 * mit_kurve + 1   # seit 03.10.2026 je Projektdetail drei Grafiken (7, 30, 90 Tage)   # seit 04.10.2026 vier Kachelfenster mit Kurve (7 Tage, Woche, 30 Tage, Monat)
+grafikbloecke = 4 + 4 * mit_kurve + 1   # seit 20.11.2026 je Projektdetail vier Grafiken (Woche, 30, 60, 90 Tage)   # seit 04.10.2026 vier Kachelfenster mit Kurve (7 Tage, Woche, 30 Tage, Monat)
 echt_kurve = web.kurve
 def kaputt(*a, **k):
     raise ValueError("kaputter Zeichner")
@@ -2501,8 +2524,8 @@ c.commit(); c.close()
 s_1 = web.seite(jetzt=jk)
 assert [(k, round(l, 3)) for k, l, _ in segmente_von(s_1)] == [("s1", 100.0)] * 2 and legende_von(s_1) == [("s1", "solo", "3", "100%")] * 2 and s_1.count("blockfehler") == 0, segmente_von(s_1)
 # Metazeile im Singular (26.09.2026): «1 Repo · 1 diese Woche aktiv», «1 repo · 1 active this week».
-assert '<p class="delta bezug pkopf"><span class="kwert">1</span> Repo · <span class="kwert">1</span> diese Woche aktiv</p>' in s_1, "Singular DE"
-assert '<p class="delta bezug pkopf"><span class="kwert">1</span> repo · <span class="kwert">1</span> active this week</p>' in web.seite(jetzt=jk, sprache="en"), "Singular EN"
+assert '<h3 class="titel">Projekte <span class="lbl">1 Repo · 1 diese Woche aktiv</span></h3>' in s_1, "Singular DE"
+assert '<h3 class="titel">Projects <span class="lbl">1 repo · 1 active this week</span></h3>' in web.seite(jetzt=jk, sprache="en"), "Singular EN"
 db.DB = haupt_1
 # Blockisolation der neuen Blöcke: bricht einer, steht seine Fehlerzeile genau einmal, alles andere bleibt.
 MARKER_K = {"Wochenring": 'class="n ring-spalte"', "Befunde": 'class="n befunde"', "Heute-Aufteilung": 'class="hrepo"', "Kopf": 'class="nums"', "Projekte": 'class="pzahl"',
@@ -2539,7 +2562,7 @@ c.commit(); c.close()
 gruppen_seite = lambda jz_: gruppen_von(web.seite(jetzt=jz_))
 g2 = gruppen_seite(jg)
 assert [(t, n, lin) for t, n, lin, _ in g2] == [("aktiv", 5, False), ("Ohne Commits diese Woche", 8, True)], g2
-assert sorted(g2[0][3]) == [f"fernwerk-studio/g{i:02d}" for i in range(5)] and "Repos:" not in web.seite(jetzt=jg), g2
+assert sorted(g2[0][3]) == [f"fernwerk-studio/g{i:02d}" for i in range(5)] and not re.search(r"\d Repos: \d+ mit", web.seite(jetzt=jg)), g2
 # Randfälle: eine Woche ganz ohne Commit ergibt nur die zweite Gruppe und keine Linie; alle aktiv nur die erste.
 g_leer = gruppen_seite(datetime(2026, 10, 7, 12, 0, tzinfo=web.TZ))
 assert [(t, n, lin) for t, n, lin, _ in g_leer] == [("Ohne Commits diese Woche", 13, False)], g_leer
@@ -2565,17 +2588,17 @@ for pfad, offen in (("/", False), ("/?ruhend=offen", True), ("/?ruhend=zu", Fals
     g_ = gruppen_von(sx, mit_zustand=True)
     assert code == 200 and [(t, n, o) for t, n, _, _, o in g_] == [("aktiv", 5, True), ("Ohne Commits diese Woche", 1, offen)], (pfad, g_)
     assert '<summary class="pgruppe getrennt">Ohne Commits diese Woche<span class="panz kwert">1</span><span class="chev" aria-hidden="true"></span></summary>' in sx, pfad
-# Zahlen im Projektblock (26.09.2026), beide Sprachen, Wortlaut fest: keine Zahl im Titel, links darunter die Metazeile als zwei Paare
-# (Wert in .kwert), die aktive Gruppe seit 27.09.2026 ohne Titel mit der Kopfzeile aller Spalten, die zweite Gruppe mit ihrer Zahl in
+# Zahlen im Projektblock (26.09.2026), beide Sprachen, Wortlaut fest: seit 20.11.2026 die Zählzeile rechts in der Titelzeile (.lbl wie die
+# Kopfzeile des Rückblicks), die aktive Gruppe seit 27.09.2026 ohne Titel mit der Kopfzeile aller Spalten, die zweite Gruppe mit ihrer Zahl in
 # .kwert und aufgeklappt derselben Kopfzeile. 6 Repos, davon 5 diese Woche aktiv, aus den Commits oben (g00 bis g04 und g09).
 for pfad, titel_, meta_, spalten_, ohne_ in (
-        ("/?ruhend=offen", "Projekte", '6</span> Repos · <span class="kwert">5</span> diese Woche aktiv', ("Repo", "30 Tage", "Zuletzt", "Betreff"), "Ohne Commits diese Woche"),
-        ("/?ruhend=offen&lang=en", "Projects", '6</span> repos · <span class="kwert">5</span> active this week', ("Repo", "30 days", "Last", "Subject"), "No commits this week")):
+        ("/?ruhend=offen", "Projekte", "6 Repos · 5 diese Woche aktiv", ("Repo", "30 Tage", "Zuletzt", "Betreff"), "Ohne Commits diese Woche"),
+        ("/?ruhend=offen&lang=en", "Projects", "6 repos · 5 active this week", ("Repo", "30 days", "Last", "Subject"), "No commits this week")):
     code, sx = seite_ueber(pfad)
-    assert code == 200 and f'<h3 class="titel">{titel_}</h3>\n  <p class="delta bezug pkopf"><span class="kwert">{meta_}</p>' in sx, (pfad, sx[sx.index('card projekte'):][:400])
+    assert code == 200 and f'<h3 class="titel">{titel_} <span class="lbl">{meta_}</span></h3>' in sx, (pfad, sx[sx.index('card projekte'):][:400])
     kopf_ = (f'<p class="pgruppe spalten"><span class="pkname">{spalten_[0]}</span><span class="pwert pkw"><span class="pspalte">Commits</span></span>'
              f'<span class="pkmikro">{spalten_[1]}</span><span class="pkalter">{spalten_[2]}</span><span class="pkbetreff">{spalten_[3]}</span></p>')
-    assert f'<h3 class="titel">{titel_}</h3>\n  <p class="delta bezug pkopf"><span class="kwert">{meta_}</p>{kopf_}' in sx and sx.count(kopf_) == 2 and sx.count('class="pspalte"') == 2, pfad
+    assert f'<h3 class="titel">{titel_} <span class="lbl">{meta_}</span></h3>\n  {kopf_}' in sx and sx.count(kopf_) == 2 and sx.count('class="pspalte"') == 2, pfad
     assert f'<summary class="pgruppe getrennt">{ohne_}<span class="panz kwert">1</span><span class="chev" aria-hidden="true"></span></summary>{kopf_}' in sx and sx.count('class="panz') == 1, pfad
     assert "gtitel" not in sx and "Diese Woche aktiv" not in sx and "Active this week" not in sx, pfad
 # Der Spaltenkopf steht auf dem Raster der Zeilen (dieselben Spalten in allen drei Breitenregeln) und seit der Korrektur vom 26.09.2026
@@ -2772,8 +2795,8 @@ assert len(kacheln_l) == 5, kacheln_l
 assert kacheln_l[0] == '<span class="delta bezug heute-kopf">Heute in 1 Repo</span>', kacheln_l[0]
 assert kacheln_l[1].startswith('<span class="delta bezug paare" title="an 3 von 7 Tagen, in 2 Repos">') and '<span class="delta bezug zeilen" title="7 Tage davor: +10 / −1 Zeilen' in kacheln_l[1] \
     and kacheln_l[3].startswith('<span class="delta bezug paare" title="an '), kacheln_l
-# Codezeile «+N / −M Zeilen»: Plus im Akzent, Minus gedämpft, echtes Minuszeichen, die Summe aus eigenem SQL.
-zl_l = re.search(r'<span class="delta bezug zeilen" title="[^"]*"><span class="zplus">\+([\d’]+)</span> / <span class="zminus">−([\d’]+)</span> Zeilen</span>', sl)
+# Codezeile seit 20.11.2026 «Zeilen: +N / −M»: Beschriftung vorn, Plus im Akzent, Minus als Wert in Textfarbe, echtes Minuszeichen, die Summe aus eigenem SQL.
+zl_l = re.search(r'<span class="delta bezug zeilen" title="[^"]*">Zeilen: <span class="zplus">\+([\d’]+)</span> / <span class="kwert">−([\d’]+)</span></span>', sl)
 assert zl_l and (int(zl_l.group(1).replace("’", "")), int(zl_l.group(2).replace("’", ""))) == (plus_w, minus_w), (zl_l and zl_l.groups(), plus_w, minus_w)
 assert regeln[".zplus"] == [" color: var(--eis); "] and regeln[".zminus"] == [" color: var(--lbl); "] and "--glut" not in " ".join(regeln[".zplus"] + regeln[".zminus"])
 assert "min-height: calc(2 * .75rem * 1.45)" in " ".join(regeln[".kmeta"]) and "margin-top: var(--s2)" in " ".join(regeln[".kmeta"]), regeln[".kmeta"]
@@ -2802,16 +2825,17 @@ assert mit_server.count('<div class="ppaar') == 5 and mit_server.rindex('class="
 ohne_server = web.projekt_stand({"sprache": "Go", "branch": "main", "server": None, "letzte": [], "warnliste": []}, 87, 9)
 assert ohne_server.count('<div class="ppaar') == 4 and "Server" not in ohne_server, "Server nur bei Diensten"
 assert regeln[".pmeta"][0].count("display: flex; flex-wrap: wrap;") == 1 and "white-space: nowrap" in " ".join(regeln[".ppaar"]) and "grid" not in " ".join(regeln[".pmeta"])
-# Metazeile der Wochen- und der 30-Tage-Kachel (26.09.2026): zwei kurze Paare, Werte in Textfarbe, der volle Satz im title, einzeilig.
+# Metazeile der Wochen- und der 30-Tage-Kachel (26.09.2026, seit 20.11.2026 «Beschriftung: Wert»): zwei kurze Paare, Werte in Textfarbe, der
+# volle Satz im title, einzeilig.
 paare_l = re.findall(r'<span class="delta bezug paare" title="([^"]*)">(.*?)</span>(?:<span class="delta bezug zeilen"|</div>)', sl)
-assert paare_l == [("an 3 von 7 Tagen, in 2 Repos", '<span class="kwert">3/7</span> aktive Tage · <span class="kwert">2</span> Repos'),
-                   ("an 3 von 6 Tagen, in 2 Repos", '<span class="kwert">3/6</span> aktive Tage · <span class="kwert">2</span> Repos'),
-                   ("an 4 von 30 Tagen, in 2 Repos", '<span class="kwert">4/30</span> aktive Tage · <span class="kwert">2</span> Repos'),
-                   ("an 4 von 26 Tagen, in 2 Repos", '<span class="kwert">4/26</span> aktive Tage · <span class="kwert">2</span> Repos')], paare_l   # Sa 26.09.: Woche 6 Tage, Monat 26
+assert paare_l == [("an 3 von 7 Tagen, in 2 Repos", 'Aktive Tage: <span class="kwert">3/7</span> · Repos: <span class="kwert">2</span>'),
+                   ("an 3 von 6 Tagen, in 2 Repos", 'Aktive Tage: <span class="kwert">3/6</span> · Repos: <span class="kwert">2</span>'),
+                   ("an 4 von 30 Tagen, in 2 Repos", 'Aktive Tage: <span class="kwert">4/30</span> · Repos: <span class="kwert">2</span>'),
+                   ("an 4 von 26 Tagen, in 2 Repos", 'Aktive Tage: <span class="kwert">4/26</span> · Repos: <span class="kwert">2</span>')], paare_l   # Sa 26.09.: Woche 6 Tage, Monat 26
 assert "white-space: nowrap" in " ".join(regeln[".tile.kpi .delta.paare"]) and regeln[".tile.kpi .delta .kwert"] == [" color: var(--txt); "]
 with gilt_nb("en"), web.fmt.gilt(web.fmt.waehlen("en")):
-    assert web.tage_paare(3, 6, 9) == '<span class="kwert">3/6</span> active days · <span class="kwert">9</span> repos' and web.tage_paare(1, 1, 1).endswith("</span> repo")
-    assert web.tage_paare(1234, 30, 1) == '<span class="kwert">1,234/30</span> active days · <span class="kwert">1</span> repo', "Zahlen aus dem Formatmodul"
+    assert web.tage_paare(3, 6, 9) == 'Active days: <span class="kwert">3/6</span> · Repos: <span class="kwert">9</span>'
+    assert web.tage_paare(1234, 30, 1) == 'Active days: <span class="kwert">1,234/30</span> · Repos: <span class="kwert">1</span>', "Zahlen aus dem Formatmodul"
 
 # (6) Handlungsbedarf: seit 09.10.2026 die Arten mit 0 als eine Zeile, je Art mit Befund Titel und Einträge auf dem Kachelraster,
 # offen ohne details, jede Zeile mit vollem Text im title.
@@ -2908,7 +2932,8 @@ satz_t, ab_t = web.server_lage(st)
 assert f"gitpuls: Timer {unit_} nicht aktiv" in ab_t and satz_t.startswith(f"gitpuls: Timer {unit_} nicht aktiv."), (satz_t, ab_t)
 zeile_t = web.server_dienste_block(st, jl).split('<details class="dienst">')[3]
 assert '<i class="punkt glut"' in zeile_t and '<span class="palter dzustand"><span class="glut">Fehler</span></span>' in zeile_t, zeile_t[:600]
-assert zeile_t.count(f'<span class="glut">Timer {unit_} nicht aktiv</span>') == 1, "nur noch im Detail anstelle des nächsten Termins"
+# Im Detail mit dem Namen ohne Präfix des Compose-Projekts wie die Spalte Lauf (20.11.2026), der volle Name steht im Lagesatz und im title.
+assert zeile_t.count(f'<span class="glut">Timer {unit_.removeprefix("gitpuls-")} nicht aktiv</span>') == 1 and unit_.startswith("gitpuls-"), "nur noch im Detail anstelle des nächsten Termins"
 with sprache.gilt("en"):
     assert f"gitpuls: timer {unit_} not active" in web.server_lage(st)[1]
 

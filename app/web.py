@@ -15,6 +15,7 @@ import html
 import json
 import math
 import os
+import posixpath
 import re
 import sqlite3
 import subprocess
@@ -1121,26 +1122,16 @@ def karte_kurve(tage, heute):
 
 
 def tage_kurve(je_tag, heute):
-    """30 oder 90 Tage bis heute im Aufklappdetail (03.10.2026, Umschalter 7/30/90 Tage), aus derselben Abfrage wie die Mikrokurve
-    (tagesreihen). Bis TAGESPUNKTE_MAX Tage ein Balken je Tag, heute in Akzentfarbe wie in der Wochengrafik; darüber einer je Kalenderwoche ab
-    Montag nach der Regel des Rückblicks: die erste Woche, wenn der Fensterrand sie schneidet, und die laufende sind angebrochen, zählen nur ihre
-    Tage im Fenster und stehen als Umriss. 90 Tagesbalken lägen in der 26rem breiten Detailgrafik keine 4 px auseinander."""
+    """30, 60 oder 90 Tage bis heute im Aufklappdetail (03.10.2026, 60 seit 20.11.2026), aus derselben Abfrage wie die Mikrokurve
+    (tagesreihen). Ein Balken je Kalendertag nach der Regel des Rückblicks (BALKEN_MAX): bis 90 Tage Tage. Der laufende Tag ist angebrochen
+    und steht als Akzentumriss mit «läuft noch»."""
+    assert len(je_tag) <= BALKEN_MAX, len(je_tag)
     von = heute - timedelta(days=len(je_tag) - 1)
-    woche = len(je_tag) > TAGESPUNKTE_MAX
-    if not woche:
-        werte, stellen, angebrochen = list(je_tag), [fmt.wochentag_datum(von + timedelta(days=i)) for i in range(len(je_tag))], set()
-    else:
-        montag0 = von - timedelta(days=von.weekday())
-        werte = [0] * ((heute - montag0).days // 7 + 1)
-        for i, v in enumerate(je_tag):
-            werte[(von + timedelta(days=i) - montag0).days // 7] += v
-        montage = [montag0 + timedelta(weeks=w) for w in range(len(werte))]
-        stellen = [fmt.spanne(max(m, von), min(m + timedelta(days=6), heute)) for m in montage]
-        angebrochen = {i for i, m in enumerate(montage) if m < von} | {len(montage) - 1}
+    werte, stellen, angebrochen = list(je_tag), [fmt.wochentag_datum(von + timedelta(days=i)) for i in range(len(je_tag))], {len(je_tag) - 1}
     oben, _ = achse(max(werte))
-    legende = f'<span class="lz">{sw(balken=True)} {t("rb.was", woche)} · {t("kk.achse", fmt.zahl(oben))}</span>'
-    grafik = kurve(werte, fmt.datum(von), fmt.datum(heute), klasse="mini", was=t("rb.was", woche), stellen=stellen, angebrochen=angebrochen,
-                   laufend=not woche, balken=True, laeuft=woche)
+    legende = f'<span class="lz">{sw(balken=True)} {t("rb.was", False)} · {t("kk.achse", fmt.zahl(oben))}</span>'
+    grafik = kurve(werte, fmt.datum(von), fmt.datum(heute), klasse="mini", was=t("rb.was", False), stellen=stellen, angebrochen=angebrochen,
+                   laufend=True, balken=True, laeuft=True)
     return f'<div class="pkurve">{grafik}<p class="sub legende2">{legende}</p></div>'
 
 
@@ -1292,11 +1283,17 @@ def geschuetzt(satz):
     return " ".join(f'<span class="satz">{teil}</span>' for teil in SATZENDE.split(gebunden))
 
 
-def zeilen_werte(plus, minus, als_html=False):
+def zeilen_werte(plus, minus, als_html=False, minus_klasse="zminus"):
     """«+1'234 / −56» (26.09.2026, vorher «1'234 Zeilen dazu, 56 entfernt»): Plus und echtes Minuszeichen. Im HTML trägt das Plus die
-    Akzentfarbe (.zplus), das Minus bleibt gedämpft (.zminus); kein Rot und kein Grün."""
+    Akzentfarbe (.zplus), das Minus bleibt gedämpft (.zminus); kein Rot und kein Grün. In den Kachel-Metazeilen steht das Minus seit
+    20.11.2026 als Wert in Textfarbe (minus_klasse="kwert"), nur das Plus bleibt Akzent."""
     p, m = fmt.zeilen(plus, minus)
-    return f'<span class="zplus">{p}</span> / <span class="zminus">{m}</span>' if als_html else f"{p} / {m}"
+    return f'<span class="zplus">{p}</span> / <span class="{minus_klasse}">{m}</span>' if als_html else f"{p} / {m}"
+
+
+def kachel_zeilen(plus, minus):
+    """Codezeile einer Kachel im Muster der Vergleichszeile (20.11.2026): «Zeilen: +1'234 / −56», Beschriftung gedämpft vorn."""
+    return t("kachel.zeilen", zeilen_werte(plus, minus, als_html=True, minus_klasse="kwert"))
 
 
 def zeilen_text(plus, minus, als_html=False):
@@ -1359,7 +1356,7 @@ def kacheldaten(c, heute, jetzt):
     schnitt7 = [sum(vierzehn[i + 1:i + 8]) / 7 for i in range(7)]
     # Codezeilen (25.09.2026) aus denselben zwei Fenstern wie Zahl und Vergleichswert; solange der Altbestand für eines davon nicht
     # geladen ist, steht gedämpft «Zeilen werden nachgeladen» statt einer halben Zahl. Die sieben Tage davor stehen im title.
-    zeile3 = html.escape(t("kachel.nachladen")) if offen_w or offen_v else zeilen_text(plus_w, minus_w, als_html=True)
+    zeile3 = html.escape(t("kachel.nachladen")) if offen_w or offen_v else kachel_zeilen(plus_w, minus_w)
     tage7 = [start7 + timedelta(days=i) for i in range(7)]
     aus.append({"n": sum(tage_w), "vor": sum(tage_v), "tage": tage_w, "schnitt": schnitt7, "label": t("kachel.label30", 7),
                 "stellen": [fmt.wochentag_datum(d) for d in tage7], "xlabels": [fmt.wochentag(d) for d in tage7],
@@ -1403,7 +1400,7 @@ def kachelvarianten(c, heute, jetzt):
           "stellen": [fmt.wochentag_datum(d) for d in woche], "stellen_v": [fmt.wochentag_datum(d - timedelta(days=7)) for d in woche], "xlabels": [fmt.wochentag(d) for d in woche],
           **vergleich(t("kachel.vorwoche"), sum(tage_w), sum(tage_v)),
           "zeile2": t("kachel.an_tagen", an_w, n_tage, beruehrt), "paare": (an_w, n_tage, beruehrt),
-          "zeile3": html.escape(t("kachel.nachladen")) if offen_w or offen_v else zeilen_text(plus_w, minus_w, als_html=True),
+          "zeile3": html.escape(t("kachel.nachladen")) if offen_w or offen_v else kachel_zeilen(plus_w, minus_w),
           # Die ganze Vorwoche Mo bis So als absolute Zahl (26.10.2026), dieselbe Reihe wie die gestrichelte Linie; bewusst ohne Prozent,
           # der Vergleich bleibt «Vorwoche zum selben Zeitpunkt».
           "zeile4": t("kachel.ganze_vorwoche", f'<span class="kwert">{fmt.zahl(sum(vorwoche))}</span>'),
@@ -1435,10 +1432,6 @@ def kachelvarianten(c, heute, jetzt):
              "legende": t("kachel.leg_monat", sw(), sw(True), fmt.monat(m0), fmt.monat(pm0)), "was": t("kachel.was_monat", fmt.monat(m0))}
 
     return {"k2": [("woche", k2)], "k3": [("monat", monat)]}
-
-
-def schnitt(werte):
-    return sum(werte) / len(werte) if werte else 0
 
 
 def server_lesen():
@@ -1735,6 +1728,11 @@ def server_dienste_block(s, jetzt):
             else:
                 txt = f'<span class="glut">{html.escape(c["name"])} {html.escape(c["status"])}</span>{t("dn.bild", bild_kurz(c.get("bild")))}'
             det.append(f'<div class="dz"><span class="dk">{t("dn.container_k")}</span><span>{txt}</span></div>')
+        # Laufzeilen als Spalten Lauf, zuletzt, Zustand, nächster (20.11.2026), auf den Spuren von .ddetail über alle Laufzeilen des Dienstes.
+        # Der Lauf ohne das Präfix des Compose-Projekts: Compose nennt das Projekt nach dem Ordner des Checkouts aus tools/dienste.json, und
+        # die Units der Dienste tragen es vorn («branding-hub-searchconsole»); ohne Treffer bleibt der volle Name, der volle steht im title.
+        projekt = posixpath.basename((d.get("checkout") or "").rstrip("/"))
+        kurz = lambda u: u[len(projekt) + 1:] if projekt and u.startswith(projekt + "-") and len(u) > len(projekt) + 1 else u
         for tm_ in d["timer"]:
             if tm_.get("status") == "fehlt":
                 det.append(f'<div class="dz"><span class="dk">{t("dn.lauf_k")}</span><span class="glut">{t("dn.timer", html.escape(tm_["unit"]), PRUEFEN)}</span></div>')
@@ -1744,19 +1742,22 @@ def server_dienste_block(s, jetzt):
                 continue
             ok = not tm_.get("exit") and tm_.get("ergebnis") in ("success", None)
             if tm_ in laufend:
-                letzter = t("dn.l_laeuft", uhr(tm_["gestartet_utc"], heute))
+                zuletzt, zustand_ = t("dn.lz_seit", uhr(tm_["gestartet_utc"], heute)), t("dn.w_laeuft")
             elif not tm_.get("letzter_utc"):
                 # Nach einem Neustart kennt systemd keine Zeiten mehr (Result success, Exit 0 ohne Zeitstempel,
                 # gemessen 08.09.2026 nach dem Neustart 05:04): das ist kein sauberer Lauf.
-                letzter = t("dn.l_nicht", neustart_txt)
+                zuletzt, zustand_ = t("dn.lz_neustart", neustart_txt), t("dn.lz_nicht")
             elif ok:
-                letzter = t("dn.l_sauber", uhr(tm_["letzter_utc"], heute))
+                zuletzt, zustand_ = t("dn.lz_zuletzt", uhr(tm_["letzter_utc"], heute)), t("dn.lz_sauber")
             else:
-                letzter = f'<span class="glut">{t("dn.l_gescheitert", uhr(tm_["letzter_utc"], heute), html.escape(tm_.get("ergebnis") or "?"), tm_.get("exit"))}</span>'
+                zuletzt = f'<span class="glut">{t("dn.lz_zuletzt", uhr(tm_["letzter_utc"], heute))}</span>'
+                zustand_ = f'<span class="glut">{t("dn.lz_gescheitert", html.escape(tm_.get("ergebnis") or "?"), tm_.get("exit"))}</span>'
             naechster = uhr(tm_["naechster_utc"], heute) if tm_.get("naechster_utc") else (t("dn.nach_lauf") if tm_ in laufend else t("dn.kein_termin"))
+            naechster = t("dn.lz_naechster", naechster)
             if tm_ in gestoppt:
-                naechster = f'<span class="glut">{t("dn.timer", html.escape(tm_["unit"]), t("dn.nicht_aktiv"))}</span>'
-            det.append(f'<div class="dz"><span class="dk">{t("dn.lauf_k")}</span><span>{t("dn.naechster", html.escape(tm_["unit"]), letzter, naechster)}</span></div>')
+                naechster = f'<span class="glut">{t("dn.timer", html.escape(kurz(tm_["unit"])), t("dn.nicht_aktiv"))}</span>'
+            det.append(f'<div class="dz lauf"><span class="dk">{t("dn.lauf_k")}</span><span title="{html.escape(tm_["unit"])}" translate="no">{html.escape(kurz(tm_["unit"]))}</span>'
+                       f'<span>{zuletzt}</span><span>{zustand_}</span><span>{naechster}</span></div>')
         dp = d.get("deploy")
         alter = deploy_alter_s(dp, jetzt)
         if not deploy_stand(dp):
@@ -2374,11 +2375,11 @@ def heute_kopf(aufteilung, zuletzt):
 
 
 def tage_paare(an, tage, repos):
-    """Metazeile der Wochen- und der 30-Tage-Kachel (26.09.2026) als zwei kurze Paare, «3/6 aktive Tage · 9 Repos»: Wert in Textfarbe
-    (.kwert), Beschriftung gedämpft; der volle Satz «an 3 von 6 Tagen, in 9 Repos» steht als title daneben (meta_zeile)."""
+    """Metazeile der Wochen- und der 30-Tage-Kachel als zwei Paare im Muster der Vergleichszeile (20.11.2026, vorher «3/6 aktive Tage · 9 Repos»):
+    «Aktive Tage: 3/6 · Repos: 9», Beschriftung gedämpft vorn, Wert in Textfarbe (.kwert); der volle Satz «an 3 von 6 Tagen, in 9 Repos»
+    steht als title daneben (meta_zeile)."""
     wert = lambda x: f'<span class="kwert">{x}</span>'
-    return (f'{wert(f"{fmt.zahl(an)}/{fmt.zahl(tage)}")} {html.escape(t("kachel.aktive_tage"))} · '
-            f'{wert(fmt.zahl(repos))} {html.escape(t("kachel.repos", repos))}')
+    return t("kachel.paare", wert(f"{fmt.zahl(an)}/{fmt.zahl(tage)}"), wert(fmt.zahl(repos)))
 
 
 def kachel_block(k, nav="", rahmen=True):
@@ -2412,7 +2413,7 @@ def kachel_block(k, nav="", rahmen=True):
 UMSCHALTER = {"k2": (("7", "seg.7"), ("woche", "seg.woche")), "k3": (("30", "seg.30"), ("monat", "seg.monat")),
               # Grafik im Aufklappdetail der Projektzeilen (03.10.2026): eine Wahl für alle Zeilen. Die erste Stufe ist die Wochengrafik (Mo bis So
               # der laufenden Kalenderwoche) und heisst seit 03.10.2026 «Woche» wie in Kachel 2; der Wert "7" bleibt, damit gitpuls-pd gilt.
-              "pd": (("7", "seg.woche"), ("30", "seg.30"), ("90", "seg.90"))}
+              "pd": (("7", "seg.woche"), ("30", "seg.30"), ("60", "seg.60"), ("90", "seg.90"))}
 
 
 def umschalter(gruppe, wahl, aria="seg.aria"):
@@ -2534,12 +2535,11 @@ def projekt_stand(k, woche, woche_vor, zeilen=None, zeilen_vor=None):
 
 
 def detail_kurven(name, woche_tage, tage, heute):
-    """Umschalter Woche, 30 und 90 Tage über der Grafik im Aufklappdetail (03.10.2026), im Stil der Umschalter der Kacheln 2 und 3. Die drei
+    """Umschalter Woche, 30, 60 und 90 Tage über der Grafik im Aufklappdetail (03.10.2026, 60 Tage seit 20.11.2026), im Stil der Umschalter der Kacheln 2 und 3. Die
     Grafiken liegen übereinander in einer Rasterzelle (.stapel), die Höhe springt beim Wechsel nicht. Der Umschalter steht ausserhalb
     der Fenster, ein Klick zeigt die Wahl in allen Projektzeilen und merkt sie im localStorage (gitpuls-pd). Jede Grafik ein eigener Block."""
     fenster = [("7", block(f"Wochenkurve {name}", karte_kurve, list(woche_tage), heute)),
-               ("30", block(f"Tageskurve 30 {name}", tage_kurve, tage[-30:], heute)),
-               ("90", block(f"Tageskurve 90 {name}", tage_kurve, tage[-90:], heute))]
+               *((n, block(f"Tageskurve {n} {name}", tage_kurve, tage[-int(n):], heute)) for n in ("30", "60", "90"))]
     return (f'<div class="pkurven">{umschalter("pd", "7", "seg.aria_pd")}<div class="stapel">'
             + "".join(f'<div class="fenster" data-gruppe="pd" data-fenster="{s}"{"" if i == 0 else " hidden"}>{g}</div>' for i, (s, g) in enumerate(fenster))
             + "</div></div>")
@@ -2601,18 +2601,16 @@ def projekte_block(c, heute, jetzt, ruhend=False):
     gruppen = [(aktiv, [k for k in karten if (reihe12[k["repo"]][-1] > 0) == aktiv]) for aktiv in (True, False)]
     n_aktiv, n_ohne = (len(ks) for _, ks in gruppen)
     assert n_aktiv + n_ohne == len(karten), (n_aktiv, n_ohne, len(karten))
-    # Zahlen im Block (26.09.2026) nach der Regel der Kachel-Metazeilen (tage_paare): Wert in Textfarbe (.kwert), Beschriftung gedämpft.
-    # Die Gesamtzahl steht nicht mehr allein rechts im Titel, sondern links darunter als «14 Repos · 9 diese Woche aktiv», beides aus
-    # denselben Gruppen gezählt. Seit 27.09.2026 trägt die aktive Gruppe keinen Titel mehr, an seiner Stelle steht eine Kopfzeile, die jede
+    # Die Gesamtzahl steht als «14 Repos · 9 diese Woche aktiv», beides aus denselben Gruppen gezählt. Seit 27.09.2026 trägt die aktive Gruppe keinen Titel mehr, an seiner Stelle steht eine Kopfzeile, die jede
     # Spalte beschriftet, auf demselben Raster wie die Zeilen (.pgruppe.spalten): «Commits» rechtsbündig auf der Zahlenkante, die übrigen
     # bündig mit ihrer Spalte. Die Gruppe «Ohne Commits diese Woche» behält Titel und Zahl und zeigt aufgeklappt dieselbe Kopfzeile.
-    wert = lambda x: f'<span class="kwert">{fmt.zahl(x)}</span>'
     spalten = lambda getrennt: (f'<p class="pgruppe spalten{getrennt}"><span class="pkname">{html.escape(t("projekte.k_repo"))}</span>'
                                 f'<span class="pwert pkw"><span class="pspalte">{html.escape(t("projekte.spalte"))}</span></span>'
                                 f'<span class="pkmikro">{html.escape(t("projekte.k_tage"))}</span><span class="pkalter">{html.escape(t("projekte.k_zuletzt"))}</span>'
                                 f'<span class="pkbetreff">{html.escape(t("projekte.k_betreff"))}</span></p>')
-    meta = (f'<p class="delta bezug pkopf">{wert(len(karten))} {html.escape(t("kachel.repos", len(karten)))} · '
-            f'{wert(n_aktiv)} {html.escape(t("projekte.meta_aktiv"))}</p>')
+    # Seit 20.11.2026 rechts in der Titelzeile, in Klasse und Lage der Kopfzeile des Rückblicks (.titel .lbl), statt links darunter.
+    meta = (f' <span class="lbl">{fmt.zahl(len(karten))} {html.escape(t("kachel.repos", len(karten)))} · '
+            f'{fmt.zahl(n_aktiv)} {html.escape(t("projekte.meta_aktiv"))}</span>' if karten else "")
     # Die zweite Gruppe ist seit 25.09.2026 ein Aufklapper, standardmässig zu; offen steht sie mit ?ruhend=offen, das der
     # Server schon beim Rendern setzt (kein Springen nach dem Laden) und das Skript beim Umschalten nachführt.
     teile, erste = [], True
@@ -2628,36 +2626,34 @@ def projekte_block(c, heute, jetzt, ruhend=False):
                     + spalten(""))
         teile.append(kopf + f'<div class="pliste{" aktiv" if aktiv_ else ""}">{"".join(zeile(k) for k in ks)}</div>' + ("" if aktiv_ else "</details>"))
         erste = False
-    return f"""<h3 class="titel">{t("projekte.titel")}</h3>
-  {(meta + "".join(teile)) if karten else f'<p class="sub">{t("projekte.leer")}</p>'}"""
+    return f"""<h3 class="titel">{t("projekte.titel")}{meta}</h3>
+  {"".join(teile) if karten else f'<p class="sub">{t("projekte.leer")}</p>'}"""
 
 
 RUECKBLICK = ("7", "30", "60", "90", "beginn")   # Beschriftung aus der Texttabelle, rb.30 und so weiter
-# Mehr Tage als das, und der Rückblick zeichnet Wochen statt Tage. Gemessen am 13.09.2026 in Chrome 153 auf den Live-Daten:
-# die Zeichenfläche ist 703.6 px breit bei 1280 und 268.6 px bei 430, 30 Tage liegen 24.3 und 9.3 px auseinander. 90 Tage
-# lägen 7.9 und 3.0 px auseinander, seit Beginn (146 Tage) 4.9 und 1.9 px, bei einer Linie von 2 px: schmal verschmelzen
-# Anstieg und Abstieg eines einzelnen Tages. Unter den 9.3 px, die heute schmal gelten, wird keine Tagesreihe behauptet.
-# ponytail: die Grenze folgt der Breite nicht von selbst; wer Rückblick-Raster oder Achsenspalte ändert, misst neu.
-TAGESPUNKTE_MAX = 30
+# Höchstens so viele Balken je Grafik (20.11.2026, Rückblick und Projekt-Detail): ein Fenster bis BALKEN_MAX Tage zeigt Tage, bis BALKEN_MAX
+# Wochen Wochen, darüber Monate. Ersetzt die Grenze von 30 aus der Zeit der Linie (13.09.2026, Punktabstand 9.3 px bei 430): seit 27.09.2026
+# sind es Balken, und 60 und 90 Tage als Wochenblöcke und seit Beginn als Monate fassten zu grob zusammen.
+BALKEN_MAX = 90
 
 
 def rueckblick_fenster(tage, heute, erster, schluessel, name):
     """Ein Fenster des Rückblicks: (Kopfzeile, Grafik mit Legende). Das Fenster beginnt nie vor dem ersten Tag mit
-    Daten. Bis TAGESPUNKTE_MAX Tage ein Punkt je Tag, darüber einer je Kalenderwoche ab Montag. Angebrochen sind die laufende
+    Daten. Bis BALKEN_MAX Tage ein Balken je Tag, darüber einer je Kalenderwoche ab Montag. Angebrochen ist der laufende Tag (seit
+    20.11.2026, Umriss, zählt nicht für Spitze und Mittel) beziehungsweise die laufende
     Woche immer und die erste, wenn der Fensterrand sie schneidet; sie zählen nur ihre Tage im Fenster, die Zeigerzeile nennt
     genau diese Tage, ihr Balken ist ein Umriss (seit 27.09.2026, vorher ein gestricheltes Segment), und sie fallen aus Spitze und Durchschnitt (ohne_angebrochene). Seit
     13.09.2026; vorher rechnete der Durchschnitt Summe mal sieben durch die Tage, und eine Teilwoche konnte die Spitze sein.
-    Unter zwei vollen Wochen entfielen Spitze und Linie; mit mehr als 30 Tagen liegen gerechnet mindestens drei volle Wochen
-    im Fenster, der Fall bleibt hier theoretisch und ist an der Detailkurve belegt. Über TAGESPUNKTE_MAX Wochen einer je Monat.
+    Unter zwei vollen Perioden entfallen Spitze und Linie; mit mehr als BALKEN_MAX Tagen liegen gerechnet mindestens zwölf volle Wochen
+    im Fenster (tests/test_web.py), bei Tagen trifft es nur ein Fenster unter drei Tagen. Über BALKEN_MAX Wochen einer je Monat.
     `woche` ist die Einheit für die Texte: False Tag, True Woche, "monat" Monat."""
     von = erster if schluessel == "beginn" else max(heute - timedelta(days=int(schluessel) - 1), erster)
     je_tag = [tage.get(von + timedelta(days=i), 0) for i in range((heute - von).days + 1)]
     summe = sum(je_tag)
-    if len(je_tag) <= TAGESPUNKTE_MAX:
+    if len(je_tag) <= BALKEN_MAX:
         werte, stellen, woche = je_tag, [fmt.datum_jahr(von + timedelta(days=i)) for i in range(len(je_tag))], False
         spitze = lambda i: t("rb.am", von + timedelta(days=i))
-        mittel, angebrochen = schnitt(je_tag), set()
-        i_max = max(range(len(werte)), key=lambda i: werte[i])
+        angebrochen = {len(je_tag) - 1}
     else:
         montag0 = von - timedelta(days=von.weekday())
         werte = [0] * ((heute - montag0).days // 7 + 1)
@@ -2667,10 +2663,9 @@ def rueckblick_fenster(tage, heute, erster, schluessel, name):
         stellen = [fmt.spanne(max(m, von), min(m + timedelta(days=6), heute)) for m in montage]
         spitze, woche = (lambda i: t("rb.ab", montage[i])), True
         angebrochen = {i for i, m in enumerate(montage) if m < von} | {len(montage) - 1}
-        if len(werte) > TAGESPUNKTE_MAX:
-            # Mehr als TAGESPUNKTE_MAX Wochen: einer je Kalendermonat (10.10.2026, Vorgabe vom 25.09.2026 für lange Historie), aus demselben Grund
-            # und mit derselben Grenze wie Tage zu Wochen: über 30 Punkten lägen sie bei 430 px keine 9.3 px auseinander (drei Jahre: 157 Wochen
-            # zu 1.7 px). Angebrochen sind der laufende Monat und der erste, wenn das Fenster nicht am Ersten beginnt.
+        if len(werte) > BALKEN_MAX:
+            # Mehr als BALKEN_MAX Wochen: einer je Kalendermonat (10.10.2026, Vorgabe vom 25.09.2026 für lange Historie), mit derselben Grenze wie
+            # Tage zu Wochen. Angebrochen sind der laufende Monat und der erste, wenn das Fenster nicht am Ersten beginnt.
             monate = [date(von.year + (von.month - 1 + k) // 12, (von.month - 1 + k) % 12 + 1, 1) for k in range((heute.year - von.year) * 12 + heute.month - von.month + 1)]
             index = {(m.year, m.month): k for k, m in enumerate(monate)}
             werte = [0] * len(monate)
@@ -2681,7 +2676,7 @@ def rueckblick_fenster(tage, heute, erster, schluessel, name):
             stellen = [fmt.spanne_jahr(max(m, von), ende(m)) for m in monate]
             spitze, woche = (lambda i: t("rb.im", monate[i])), "monat"
             angebrochen = ({0} if von.day != 1 else set()) | {len(monate) - 1}
-        i_max, mittel = ohne_angebrochene(werte, angebrochen)
+    i_max, mittel = ohne_angebrochene(werte, angebrochen)
     grafik = kurve(werte, fmt.datum_jahr(von), fmt.datum_jahr(heute), klasse="gross", bezug=(mittel, "Durchschnitt") if mittel is not None else None,
                    max_marke=f"{fmt.zahl(werte[i_max])} {spitze(i_max)}" if tage and i_max is not None else None, was=t("rb.was", woche),
                    stellen=stellen, angebrochen=angebrochen, laufend=not woche, balken=True, laeuft=True)
@@ -2756,7 +2751,7 @@ WAHL_KOPF = ("<script>try{var w=document.documentElement,g=" + json.dumps(WAHL, 
              'html[data-rb] .rueckblick .fenster { visibility: hidden; } '
              f"{_WAHL_ZEIGEN} {{ visibility: visible; }} "
              "html[data-rb] .rueckblick .reiter button[aria-pressed], html[data-pd] nav[data-gruppe=\"pd\"] button[aria-pressed] { background: none; color: var(--sec); } "
-             f"{_WAHL_REITER} {{ background: var(--eis); color: var(--bg); }}</style>")
+             f"{_WAHL_REITER} {{ background: var(--wahl); color: var(--wahl-txt); }}</style>")
 
 
 def stand_block(c):

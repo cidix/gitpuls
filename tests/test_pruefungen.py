@@ -282,13 +282,14 @@ woche, vorwoche = im(w0, ju + timedelta(seconds=1)), im(v0, v1)
 # a1 13/2, a2 2/1 (nur package.json), a3 3’008/3 (klein.py, genau.py mit genau 3000, package.json), b1 104/1; Vorwoche a0 5/5.
 assert (summe(woche), summe(vorwoche)) == ((3127, 7), (5, 5)), (summe(woche), summe(vorwoche))
 # Ausgeschlossen diese Woche: a2 package-lock 1300, yarn.lock 100, go.sum 14; a3 insel.json 500, dist 50, gross.py 3500: 5’464 in 6 Dateien.
-# Seit 26.09.2026 «+N / −M Zeilen»: das Plus in Akzentfarbe (.zplus), das Minus gedämpft (.zminus), echtes Minuszeichen.
+# Seit 26.09.2026 «+N / −M Zeilen»: das Plus in Akzentfarbe (.zplus), das Minus gedämpft (.zminus), echtes Minuszeichen. In der Kachel seit
+# 20.11.2026 «Zeilen: +N / −M», das Minus als Wert in Textfarbe (.kwert).
 # Seit 30.09.2026 die Kachel über die letzten 7 Tage (Fr 18.09. bis jetzt): dieselben Commits wie die Woche ab Montag; die sieben Tage
 # davor (11.09. bis 17.09.) enthalten wie die Vorwoche nur a0 mit Zeilen, der title nennt sie als «7 Tage davor».
 assert all(datetime(2026, 9, 18, tzinfo=TZ) <= datetime.fromisoformat(r[0].replace("Z", "+00:00")) for r in woche)
 assert (f'<span class="delta bezug zeilen" title="7 Tage davor: +{summe(vorwoche)[0]} / \u2212{summe(vorwoche)[1]} Zeilen\n'
         f'letzte 7 Tage ausgeschlossen: 5’464 Zeilen in 6 Dateien (Daten, Lockfiles, Erzeugtes, Einzeldateien über 3’000 Zeilen); 1 Commit ohne '
-        f'Zeilenangabe"><span class="zplus">+3’127</span> / <span class="zminus">\u22127</span> Zeilen</span>') in s, re.findall(r'<span class="delta bezug zeilen".*?</span> Zeilen</span>', s, re.S)
+        f'Zeilenangabe">Zeilen: <span class="zplus">+3’127</span> / <span class="kwert">\u22127</span></span>') in s, re.findall(r'<span class="delta bezug zeilen".*?</span></span>', s, re.S)
 # Raster im Detail: laufende Woche je Repo sichtbar, die Vorwoche im title, gegen die Vorwoche zum selben Zeitpunkt mit der Zeitgrenze der
 # Kachel (v1, seit 25.09.2026 auch für die Projektzeile); a0 liegt darin, b hat dort nichts.
 for repo, (pw, mw) in (("fernwerk-studio/a", ("3’023", "6")), ("fernwerk-studio/b", ("104", "1"))):
