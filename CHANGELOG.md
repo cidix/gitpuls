@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.2] - 2026-11-20
+
+### Fixed
+
+- The details of an expanded project spread their label and value pairs evenly across lines when they wrap.
+
 ## [2.7.1] - 2026-11-20
 
 ### Fixed

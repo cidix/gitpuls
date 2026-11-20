@@ -2824,7 +2824,9 @@ assert ('<div class="ppaar"><dt>Woche</dt><dd><span title="Vorwoche zum selben Z
 assert mit_server.count('<div class="ppaar') == 5 and mit_server.rindex('class="ppaar zweig"') > mit_server.rindex('<dt>Server</dt>') and "zum selben Zeitpunkt" not in re.sub(r'title="[^"]*"', "", mit_server), mit_server
 ohne_server = web.projekt_stand({"sprache": "Go", "branch": "main", "server": None, "letzte": [], "warnliste": []}, 87, 9)
 assert ohne_server.count('<div class="ppaar') == 4 and "Server" not in ohne_server, "Server nur bei Diensten"
-assert regeln[".pmeta"][0].count("display: flex; flex-wrap: wrap;") == 1 and "white-space: nowrap" in " ".join(regeln[".ppaar"]) and "grid" not in " ".join(regeln[".pmeta"])
+# Seit 2.7.2 ein Block mit text-wrap: balance, die Paare unteilbare Inline-Boxen (Paar bricht nur als Ganzes).
+assert "text-wrap: balance" in regeln[".pmeta"][0] and "flex" not in regeln[".pmeta"][0] and "white-space: nowrap" in " ".join(regeln[".ppaar"]) \
+    and "display: inline-flex" in " ".join(regeln[".ppaar"]) and "grid" not in " ".join(regeln[".pmeta"])
 # Trennpunkt am Ende des vorherigen Paars (2.7.1), damit nach einem Umbruch keine Zeile mit «·» beginnt.
 assert regeln[".ppaar:not(:last-child)::after"] and ".ppaar + .ppaar::before" not in regeln, "Trennpunkt hängt am vorherigen Paar"
 # Metazeile der Wochen- und der 30-Tage-Kachel (26.09.2026, seit 20.11.2026 «Beschriftung: Wert»): zwei kurze Paare, Werte in Textfarbe, der

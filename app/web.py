@@ -2544,7 +2544,7 @@ def projekt_stand(k, woche, woche_vor, zeilen=None, zeilen_vor=None):
         felder.append((t("ps.actions"), f'{html.escape(t("hb.ci_zeile", k["ci"]["workflow"]))} <span class="hbrest">{html.escape(k["ci"]["alter"])}</span>', ""))
     if k.get("abruf"):
         felder.append((t("ps.abruf"), f'<span translate="no">{html.escape(k["abruf"]["text"])}</span>', ""))
-    # Der Zweig steht zuletzt und nimmt den Rest der Zeile: ein langer Name kürzt mit Ellipse (voller Name im title), statt das Raster um
+    # Der Zweig steht zuletzt; ein langer Name kürzt bei voller Breite mit Ellipse (voller Name im title), statt das Raster um
     # eine Zeile zu verlängern (gemessen 26.09.2026: «release/2026-herbst-umbau-der-kartenansicht» brauchte 335 px).
     felder.append((t("ps.zweig"), f'<span translate="no" title="{html.escape(k["branch"])}">{html.escape(k["branch"])}</span>', " zweig"))
     # Seit 26.09.2026 fliessen die Paare nebeneinander und brechen nur um, wenn der Platz fehlt; ein Paar (.ppaar) wird nie getrennt.
