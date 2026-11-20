@@ -23,6 +23,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -66,6 +68,71 @@ NEUSTART_MECHANISMUS = ("/etc/kernel/postinst.d/unattended-upgrades", "/usr/shar
 FRIST_S = 20   # je Aufruf; der Timer gibt dem ganzen Lauf 60 s
 
 UNGEMESSEN = {}   # Schlüssel -> Grund, landet als "ungemessen" in server.json
+
+# Laufstatus eines Dienstes (20.11.2026): ein Dienst kann in der Diensttabelle unter "lauf_status" die Adresse einer
+# JSON-Antwort mit dem Ergebnis seines letzten Laufs nennen. Anlass: vom 18. bis 20.11.2026 erhob ein Dienst keine einzige seiner Sites,
+# die Units endeten mit Exit 0, und die Serverzone meldete «überall sauber». Abgerufen ohne Weiterleitung, mit Grössengrenze, kurzer
+# Frist im Fünfminutentakt und eigenem User-Agent; angenommen wird nur die gemessene Form, alles andere ist «nicht gemessen», nie sauber.
+LAUF_ERGEBNISSE = ("fertig", "unvollständig", "übersprungen", "abgebrochen")
+LAUF_LISTEN = ("nicht_erreicht", "nicht_eingelesen", "endpoint_fehlgeschlagen")
+LAUF_FRIST_S = 5
+LAUF_MAX_BYTES = 65536
+
+
+class _OhneWeiterleitung(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None   # eine Weiterleitung endet als HTTPError mit ihrem 3xx, ihr wird nie gefolgt
+
+
+OEFFNEN = urllib.request.build_opener(_OhneWeiterleitung).open
+
+
+def lauf_auswerten(d):
+    """Die Antwort in der am 20.11.2026 gemessenen Form auf das, was server.json trägt: nur das Ergebnis aus der festen Liste und Zahlen, nie die
+    Domains. betroffen zählt die verschiedenen Sites aus den drei Listen, eine Site in zwei Listen einmal. Während eines Laufs ist ergebnis
+    null und aktiv true; das ist gemessen und bleibt ohne Ergebnis. Jede andere Form wirft Ungemessen."""
+    if not isinstance(d, dict):
+        raise Ungemessen("Laufstatus: keine Objektantwort")
+    if d.get("aktiv") is True and d.get("ergebnis") is None:
+        return {"aktiv": True}
+    if d.get("aktiv") is not False:
+        raise Ungemessen("Laufstatus: aktiv fehlt oder ist kein Wahrheitswert")
+    if d.get("ergebnis") not in LAUF_ERGEBNISSE:
+        raise Ungemessen("Laufstatus: ergebnis fehlt oder ist unbekannt")
+    zahlen = [d.get(k) for k in ("fertig", "gesamt")]
+    if not all(isinstance(z, int) and not isinstance(z, bool) and z >= 0 for z in zahlen):
+        raise Ungemessen("Laufstatus: fertig und gesamt müssen ganze Zahlen sein")
+    if not all(isinstance(d.get(k), list) and all(isinstance(x, str) for x in d[k]) for k in LAUF_LISTEN):
+        raise Ungemessen("Laufstatus: " + ", ".join(LAUF_LISTEN) + " müssen Listen von Texten sein")
+    return {"ergebnis": d["ergebnis"], "betroffen": len({x for k in LAUF_LISTEN for x in d[k]}), "gesamt": d["gesamt"]}
+
+
+def lauf_status(url, oeffnen=None):
+    """Laufstatus eines Dienstes für server.json. Ein Fehler, eine Zeitüberschreitung oder eine andere Form ergibt {"ergebnis": "nicht gemessen",
+    "grund": ...} mit eigenem Text, nie mit Text aus der Antwort."""
+    try:
+        if urlparse(url).scheme not in ("http", "https"):
+            raise Ungemessen("Laufstatus: nur http oder https")
+        anfrage = urllib.request.Request(url, headers={"User-Agent": "gitpuls-server-stand", "Accept": "application/json"})
+        with (oeffnen or OEFFNEN)(anfrage, timeout=LAUF_FRIST_S) as r:
+            roh = r.read(LAUF_MAX_BYTES + 1)
+        if len(roh) > LAUF_MAX_BYTES:
+            raise Ungemessen(f"Laufstatus: Antwort grösser als {LAUF_MAX_BYTES} Bytes")
+        return lauf_auswerten(json.loads(roh))
+    except urllib.error.HTTPError as e:
+        grund_ = f"Laufstatus: HTTP {e.code}"
+    except TimeoutError:
+        grund_ = f"Laufstatus: keine Antwort nach {LAUF_FRIST_S} s"
+    except urllib.error.URLError as e:
+        grund_ = (f"Laufstatus: keine Antwort nach {LAUF_FRIST_S} s" if isinstance(e.reason, TimeoutError)
+                  else f"Laufstatus: nicht erreichbar ({type(e.reason).__name__})")
+    except ValueError:
+        grund_ = "Laufstatus: kein gültiges JSON"
+    except Ungemessen as e:
+        grund_ = str(e)
+    except OSError as e:
+        grund_ = f"Laufstatus: {type(e).__name__}"
+    return {"ergebnis": "nicht gemessen", "grund": grund_}
 
 
 class Ungemessen(Exception):
@@ -436,7 +503,7 @@ def dienste_lesen():
     return tab["dienste"]
 
 
-TEXTE = ("zweck", "link", "repo", "checkout")
+TEXTE = ("zweck", "link", "repo", "checkout", "lauf_status")
 
 
 def dienst_eintrag(i, d, deploy, deploy_fehler, namen=()):
@@ -459,7 +526,8 @@ def dienst_eintrag(i, d, deploy, deploy_fehler, namen=()):
         return {"name": name if isinstance(name, str) and name else f"Eintrag {i + 1}", "zweck": "", "link": "", "repo": None, "checkout": None,
                 "zeilen": [], "container": [], "timer": [], "deploy": None, "fehler": f"Diensttabelle: {fehler}"}
     dp = {"fehler": deploy_fehler} if deploy_fehler else deploy.get(name)
-    return {"name": name, "zweck": d.get("zweck") or "", "link": d.get("link") or "", "repo": d.get("repo"), "checkout": d.get("checkout"),
+    lauf_ = {"lauf": lauf_status(d["lauf_status"])} if d.get("lauf_status") else {}   # ohne das Feld bleibt der Eintrag wie bisher
+    return {**lauf_, "name": name, "zweck": d.get("zweck") or "", "link": d.get("link") or "", "repo": d.get("repo"), "checkout": d.get("checkout"),
             "zeilen": d.get("zeilen", []), "container": [container(c) for c in d.get("container", [])],
             "timer": [timer(t) for t in d.get("timer", [])], "deploy": dp if isinstance(dp, dict) else None}
 

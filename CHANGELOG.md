@@ -6,6 +6,17 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-20
+
+### Added
+
+- A service can name the address of a status of its last run (`lauf_status` in the service table). An incomplete run appears as a warning in the service row, the status sentence and the expanded detail, with the number of sites not collected.
+- A run status that cannot be read appears as "not measured".
+
+### Fixed
+
+- Expanded services with long run names stay within the page width; their run columns wrap when space is short.
+
 ## [2.6.0] - 2026-11-20
 
 ### Added

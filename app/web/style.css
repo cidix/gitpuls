@@ -160,12 +160,14 @@ details.dienst summary a { font-weight: 600; }
 /* Aufklappdetail (20.11.2026): die Beschriftungsspalte so breit wie die längste Beschriftung, --s3 bis zum Wert wie Datum und Betreff im
    Projektdetail (vorher auf der Kante des Ports). Die Laufzeilen (.dz.lauf) legen ihre vier
    Werte Lauf, zuletzt, Zustand und nächster auf die Spuren 2 bis 5, je so breit wie ihr längster Eintrag im Dienst; die übrigen Werte
-   spannen über alle vier. Eine spannende Zelle reicht in die flexible letzte Spur und weitet die Spuren davor deshalb nicht. */
-.ddetail { display: grid; grid-template-columns: max-content repeat(3, max-content) minmax(0, 1fr); column-gap: var(--s3); row-gap: .25rem;
+   spannen über alle vier. Eine spannende Zelle reicht in die flexible letzte Spur und weitet die Spuren davor deshalb nicht. Seit 2.7.0
+   dürfen die drei Laufspuren unter ihre Inhaltsbreite schrumpfen (minmax(0, max-content)) und brechen dann um: als feste max-content-Spuren
+   mit nowrap machten lange Laufnamen die Kachel breiter als die Seite (gemessen 20.11.2026, 63 px bei 1280 und 113 px bei 430). */
+.ddetail { display: grid; grid-template-columns: max-content repeat(3, minmax(0, max-content)) minmax(0, 1fr); column-gap: var(--s3); row-gap: .25rem;
   padding: 0 0 var(--s3) calc(.625rem + var(--s6)); font-size: .8rem; font-variant-numeric: tabular-nums; }
 .dz { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
 .dz > span:not(.dk) { grid-column: 2 / -1; }
-.dz.lauf > span:not(.dk) { grid-column: auto; white-space: nowrap; }
+.dz.lauf > span:not(.dk) { grid-column: auto; min-width: 0; overflow-wrap: anywhere; }
 .dk { color: var(--lbl); font-size: .75rem; letter-spacing: .01em; padding-top: .1rem; }
 /* Dieselbe Ordnung wie in den Fussblöcken seit f9caaee (.mz): Beschriftungsspalte gedämpft, Wertspalte in
    Textfarbe. Vorher lag beides auf --sec des Aufklappdetails, und der Wert las sich so leise wie sein Etikett.
@@ -573,9 +575,9 @@ details[open] > summary::before { transform: rotate(45deg); }
      brauchen den Platz allein, der Balken drängte den Wert in die zweite Zeile. */
   .fbalken, .heute .uhr { display: none; }
   .hcrepo { display: none; } .hcommits { grid-template-columns: auto minmax(0, 1fr); }   /* schmal ohne Repo-Spalte */
-  body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } .ddetail { padding-left: 0; grid-template-columns: repeat(3, max-content) minmax(0, 1fr); }
+  body { padding: var(--s4) var(--s3) var(--s8); } .zone { padding: var(--s4); } .n b { font-size: 1.6rem; } .ddetail { padding-left: 0; grid-template-columns: repeat(3, minmax(0, max-content)) minmax(0, 1fr); }
   .dz > .dk { grid-column: 1 / -1; } .dz > span:not(.dk) { grid-column: 1 / -1; } .dz.lauf + .dz.lauf > .dk { display: none; }
-  .dz.lauf > span:not(.dk):last-child { white-space: normal; } .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
+  .aktual { width: 100%; justify-content: flex-start; } .btn.lauf { width: 100%; justify-content: center; } .stamp { text-align: left; } .seg { display: flex; } .seg a { flex: 1; justify-content: center; padding: .35rem .6rem; } .nums { gap: var(--s3); } }
 /* shortcut: mit --s2 kürzt der längste Name auf sehr schmalen Geräten; ein Umbruch auf zwei Zeilen wäre die Alternative. */
 @media (max-width: 500px) { details.dienst summary, .pgruppe.spalten.dkopf { column-gap: var(--s2); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

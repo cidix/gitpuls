@@ -1535,6 +1535,20 @@ def dienst_ok(d):
             and all(isinstance(d.get(k), list) and all(isinstance(x, dict) for x in d[k]) for k in ("container", "timer")))
 
 
+def lauf_ergebnis(d):
+    """Laufstatus eines Dienstes aus server.json (20.11.2026): ("unvollständig", betroffen, gesamt), ("nicht gemessen", grund) oder None.
+    Nur ein Dienst mit "lauf_status" in der Diensttabelle trägt "lauf"; fertig, übersprungen, abgebrochen und ein laufender Lauf ändern nichts.
+    Ein Eintrag in anderer Form gilt als nicht gemessen, nie als sauber."""
+    lauf_ = d.get("lauf") if isinstance(d, dict) else None
+    if lauf_ is None or (isinstance(lauf_, dict) and (lauf_.get("aktiv") is True or lauf_.get("ergebnis") in ("fertig", "übersprungen", "abgebrochen"))):
+        return None
+    if isinstance(lauf_, dict) and lauf_.get("ergebnis") == "unvollständig" and all(
+            isinstance(lauf_.get(k), int) and not isinstance(lauf_.get(k), bool) for k in ("betroffen", "gesamt")):
+        return ("unvollständig", lauf_["betroffen"], lauf_["gesamt"])
+    grund_ = lauf_.get("grund") if isinstance(lauf_, dict) else None
+    return ("nicht gemessen", grund_ if isinstance(grund_, str) else "")
+
+
 def dienst_name(d):
     return d["name"] if isinstance(d, dict) and isinstance(d.get("name"), str) else "?"
 
@@ -1561,6 +1575,12 @@ def server_lage(s):
             if tm_.get("exit") or tm_.get("ergebnis") not in ("success", None):
                 ab.append(t("sl.gescheitert", d["name"], tm_["unit"], tm_.get("ergebnis"), tm_.get("exit")))
                 gescheitert = True
+        # Laufstatus (20.11.2026): ein Lauf mit Exit 0, der Sites nicht erhoben hat, ist kein sauberer Lauf.
+        le = lauf_ergebnis(d)
+        if le:
+            ab.append(t("sl.unvollstaendig", d["name"], fmt.zahl(le[1]), fmt.zahl(le[2])) if le[0] == "unvollständig"
+                      else t("sl.ungemessen", d["name"], t("sl.laufergebnis")))
+            gescheitert = True
     ab += firewall_befunde(s.get("firewall"))
     if s["zustand"].get("neustart_noetig"):
         ab.append(t("sl.neustart_noetig", neustart_grund(s["zustand"])))
@@ -1695,11 +1715,16 @@ def server_dienste_block(s, jetzt):
         laufend = [t for t in d["timer"] if t.get("status") in ("activating", "active") and t.get("gestartet_utc")]
         fertig = sorted((t for t in d["timer"] if t.get("letzter_utc") and t not in laufend), key=lambda t: t["letzter_utc"])
         # Zustandspunkt, Zeitpunkt des letzten Laufs und der Zustand als ein Wort; Unit, Container und Grund stehen im Detail.
+        le = lauf_ergebnis(d)
         if cont_ab or gescheitert or fehlend or gestoppt:
             punkt, zustand = "glut", f'<span class="glut">{t("dn.w_fehler")}</span>'
             zeit = gescheitert[0].get("letzter_utc") if gescheitert else (fertig[-1]["letzter_utc"] if fertig else None)
-        elif nicht:
-            punkt, zustand, zeit = "grau", ng(nicht[0]), None
+        elif le and le[0] == "unvollständig":
+            # Exit 0, aber Sites nicht erhoben (20.11.2026): Punkt und Wort in Warnfarbe wie beim nicht aktiven Timer; Exit ungleich 0 geht vor.
+            punkt, zustand = "glut", f'<span class="glut">{t("dn.w_unvollstaendig")}</span>'
+            zeit = fertig[-1]["letzter_utc"] if fertig else None
+        elif nicht or le:
+            punkt, zustand, zeit = "grau", ng(nicht[0] if nicht else {"grund": le[1]}), None
         elif laufend:
             punkt, zustand, zeit = "mint", t("dn.w_laeuft"), laufend[0]["gestartet_utc"]
         elif fertig:
@@ -1758,6 +1783,10 @@ def server_dienste_block(s, jetzt):
                 naechster = f'<span class="glut">{t("dn.timer", html.escape(kurz(tm_["unit"])), t("dn.nicht_aktiv"))}</span>'
             det.append(f'<div class="dz lauf"><span class="dk">{t("dn.lauf_k")}</span><span title="{html.escape(tm_["unit"])}" translate="no">{html.escape(kurz(tm_["unit"]))}</span>'
                        f'<span>{zuletzt}</span><span>{zustand_}</span><span>{naechster}</span></div>')
+        if le:
+            det.append(f'<div class="dz"><span class="dk">{t("dn.ergebnis_k")}</span>'
+                       + (f'<span class="glut">{t("dn.unvollstaendig", fmt.zahl(le[1]), fmt.zahl(le[2]))}</span>' if le[0] == "unvollständig"
+                          else f'<span>{ng({"grund": le[1]})}</span>') + '</div>')
         dp = d.get("deploy")
         alter = deploy_alter_s(dp, jetzt)
         if not deploy_stand(dp):
