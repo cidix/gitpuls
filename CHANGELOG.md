@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.4] - 2026-11-20
+
+### Fixed
+
+- The arrow of "and N more repos" in the today tile points up when expanded, also when the page loads with `?heute=offen`, and right when collapsed.
+
 ## [2.7.3] - 2026-11-20
 
 ### Fixed

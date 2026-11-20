@@ -425,6 +425,8 @@ details.gruppe > summary, details.hbeintrag > summary { display: flex; align-ite
 details.gruppe > summary::-webkit-details-marker, details.hbeintrag > summary::-webkit-details-marker { display: none; }
 details.gruppe > summary .chev, details.hbeintrag > summary .chev { margin-left: auto; flex: none; }
 details.gruppe[open] > summary .chev, details.hbeintrag[open] > summary .chev { transform: rotate(45deg); }
+/* «und N weitere Repos» klappt nach oben auf (die Zeilen erscheinen darüber): offen zeigt der Pfeil nach oben, zu nach rechts. */
+details.heute-rest[open] > summary .chev { transform: rotate(-135deg); }
 .projekte > .titel + details.gruppe > summary, details.gruppe > summary + .pgruppe.spalten { margin-top: var(--s3); }
 /* Feste Spalten links, der Betreff nimmt den Überschuss auf; der Befund steht nur, wo einer vorliegt, und nimmt dem
    Betreff seiner Zeile den Platz, die festen Spalten davor bleiben über alle Zeilen auf derselben Kante. */

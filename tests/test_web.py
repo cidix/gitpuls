@@ -1454,6 +1454,14 @@ assert ".heute:has(+ details.heute-rest[open]) li.nur-schmal { display: grid; }"
 assert "details.hbeintrag > summary::before, details.heute-rest > summary::before { content: none; }" in (web.WEB / "style.css").read_text(), "nur der Chevron rechts, Text auf der Namenskante"
 assert ".heute-rest > summary { color: inherit; }" in (web.WEB / "style.css").read_text(), "Restzeile in --lbl wie vor dem Aufklapper"
 assert "<details class=\"gruppe heute-rest\" open>" in web.kachel_block(dict(k12, offen=True)), "offen mit ?heute=offen"
+# Pfeil der Restzeile (2.7.4): zu nach rechts wie jeder .chev, offen (auch geladen mit ?heute=offen, open steht im HTML) nach oben;
+# die Regel steht nach der allgemeinen Drehung der Gruppen und gewinnt bei gleicher Spezifität.
+css_h = re.sub(r"/\*.*?\*/", "", (web.WEB / "style.css").read_text(), flags=re.S)
+dreh = lambda sel: [re.search(r"transform: (rotate\([^)]*\))", d).group(1) for s, d in re.findall(r"([^{}]+)\{([^{}]*)\}", css_h)
+                    if sel in [x.strip() for x in s.split(",")] and "transform:" in d]
+assert dreh(".chev") == ["rotate(-45deg)"] and not [s for s in re.findall(r"([^{}]+)\{", css_h) if "heute-rest" in s and ".chev" in s and "[open]" not in s], "zu: nach rechts"
+assert dreh("details.heute-rest[open] > summary .chev") == ["rotate(-135deg)"], "offen: nach oben"
+assert css_h.index("details.gruppe[open] > summary .chev") < css_h.index("details.heute-rest[open] > summary .chev"), "offen: Reihenfolge"
 k12zh = web.kachel_block(k12z)
 # Rückfall «Zuletzt gearbeitet»: dieselbe Vergleichszeile mit Doppelpunkt und Wert in voller Textfarbe (25.09.2026).
 assert "Zuletzt gearbeitet" in k12zh and re.search(r'<span class="delta">gestern: <span class="vwert">\d+</span>', k12zh), k12zh[:600]
