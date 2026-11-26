@@ -980,7 +980,7 @@ with db.verbinden() as c2:
     tage_ = web.tageszaehlung(c2)
     karten_ = web.projekte(c2, jetzt_zh.date(), jetzt_zh)
     kacheln = web.kacheldaten(c2, jetzt_zh.date(), jetzt_zh)
-assert [k["label"] for k in kacheln] == ["Commits heute", "Commits, letzte 7 Tage", "Commits, letzte 30 Tage"]
+assert [k["label"] for k in kacheln] == ["Commits heute", "Commits letzte 7 Tage", "Commits letzte 30 Tage"]
 for k in kacheln:
     if "voll" in k:   # die Heute-Kachel trägt seit 13.09.2026 keine Kurve mehr
         assert (k["voll"][-1][1] if isinstance(k["voll"][-1], tuple) else k["voll"][-1]) == k["n"], k["label"]
@@ -1082,7 +1082,7 @@ for k, st, voll_, vgl_ in ((tw, stellen_k[0], tw["tage"], tw["schnitt"]), (t30, 
     assert [f[2] for f in st] == [ch(v) for v in voll_] and [f[4] for f in st] == [eine_stelle(v) for v in vgl_], (k["label"], st)
     assert all(len(f) == 6 and f[3] and f[5] for f in st) and [f[1] for f in st] == lauf_(k["stellen"]), (k["label"], st)
 kacheln_txt = s[s.index('<div class="tiles3">'):s.index('<section class="card projekte">')]
-for text in ("Commits, letzte 7 Tage", "7 Tage davor", "Commits diese Woche", "Vorwoche zum selben Zeitpunkt", "Commits, letzte 30 Tage",
+for text in ("Commits letzte 7 Tage", "7 Tage davor", "Commits diese Woche", "Vorwoche zum selben Zeitpunkt", "Commits letzte 30 Tage",
              "Commits diesen Monat", "Vormonat zum selben Zeitpunkt"):
     assert text in kacheln_txt, text
 # (bis zum Beginn der Projektliste: deren Detailkurven tragen seit 13.09.2026 ein Ø in der Legende)
@@ -2155,6 +2155,20 @@ s = seite()
 assert s.index("localStorage.getItem('gitpuls-modus')") < s.index("tokens.css") and 'content="light dark"' in s
 assert s.count('data-wahl=') == 2 and 'data-wahl="system"' not in s and "'system'" not in s, "zwei Segmente, kein dritter Zustand"
 assert "prefers-color-scheme" in s and "removeItem('gitpuls-modus')" in s, "Listener und Rückfall auf das System"
+# Der Modus-Umschalter trägt die Klasse der übrigen Segmentleisten (2.7.5): gleiche Grösse, aktives Segment über dieselbe Regel und --wahl,
+# kein eigener Farbwert. Gemessen in Chrome 158 bei 1280 px: hell und dunkel identisch mit Kachel 2, Kachel 3 und Aufklappdetail.
+assert '<nav class="seg klein modus"' in s and 'class="seg small modus"' not in s, re.search(r'<nav class="[^"]*modus"', s)
+assert not [r for r in re.findall(r"([^{}]+)\{[^{}]*(?:background|color)[^{}]*\}", re.sub(r"/\*.*?\*/", "", (web.WEB / "style.css").read_text(), flags=re.S))
+            if ".modus" in r], "keine eigene Farbregel für den Modus-Umschalter"
+# Dienst-Detail (2.7.5): eine Zeilenhöhe (19 px) über der ersten Zeile, ganze Pixel; gemessen in Chrome bei allen sieben Diensten 19 px.
+_dd = re.search(r"\.ddetail \{[^}]*\}", (web.WEB / "style.css").read_text()).group(0)
+assert "padding: 1.1875rem 0 var(--s3)" in _dd and "line-height: 1.1875rem" in _dd, _dd
+# Kacheltitel ohne Komma (2.7.5), de und en gleich gebaut.
+from app.texte import de as _de, en as _en
+assert [_de.T["kachel.label30"](n) for n in (7, 30)] == ["Commits letzte 7 Tage", "Commits letzte 30 Tage"]
+assert [_en.T["kachel.label30"](n) for n in (7, 30)] == ["Commits last 7 days", "Commits last 30 days"]
+assert not [k for tab in (_de.T, _en.T) for k, v in tab.items()
+            if k.startswith("kachel.") and (v if isinstance(v, str) else v(30) if callable(v) and v.__code__.co_argcount == 1 else "").startswith("Commits,")]
 
 # Die Rangliste fremder Repos ist mit 1.1.0 entfallen, samt Reitern und ?sterne=.
 s = seite()
@@ -2367,7 +2381,7 @@ with db.verbinden() as c2:
     summe_sql = c2.execute("SELECT COUNT(*) FROM commits WHERE zeitstempel_utc >= ? AND zeitstempel_utc <= ?",
                            (datetime(2026, 9, 21, tzinfo=web.TZ).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), jk.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))).fetchone()[0]
 kacheln_k = re.findall(r'<span class="big mid">([^<]*)</span>(?:<nav class="seg klein umschalter".*?</nav>)?<span class="lbl">([^<]*)</span>', sk)
-sieben_kachel = int(dict((l, n) for n, l in kacheln_k)["Commits, letzte 7 Tage"])
+sieben_kachel = int(dict((l, n) for n, l in kacheln_k)["Commits letzte 7 Tage"])
 with db.verbinden() as c2:
     summe7_sql = c2.execute("SELECT COUNT(*) FROM commits WHERE zeitstempel_utc >= ? AND zeitstempel_utc <= ?",
                             (datetime.combine(jk.date() - timedelta(days=6), time(0), web.TZ).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), jk.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))).fetchone()[0]

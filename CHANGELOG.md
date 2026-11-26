@@ -6,6 +6,14 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.5] - 2026-11-26
+
+### Changed
+
+- The light and dark switch in the header has the same size and the same highlighted segment as the other switches on the page.
+- The tile titles read "Commits last 7 days" and "Commits last 30 days".
+- An expanded service leaves one line of space above its first row.
+
 ## [2.7.4] - 2026-11-20
 
 ### Fixed

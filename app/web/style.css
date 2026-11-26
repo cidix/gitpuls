@@ -165,9 +165,10 @@ details.dienst summary a { font-weight: 600; }
    mit nowrap machten lange Laufnamen die Kachel breiter als die Seite (gemessen 20.11.2026, 63 px bei 1280 und 113 px bei 430). */
 /* Zeilenhöhe 19 px und 1 px über der Beschriftung (2.7.3) statt 1.45 × 12.8 = 18.56 px und .1rem: so ist das Aufklappdetail ganze Pixel hoch,
    und was darunter liegt, rutscht beim Aufklappen um ganze Pixel statt auf einen anderen Teilpixel (gemessen 20.11.2026: 236.4 px, die Zeilen
-   darunter wurden mit anderer Kantenglättung gezeichnet). Die Unterkante der Beschriftung liegt 1 px unter der des Werts (vorher 1.59 px). */
+   darunter wurden mit anderer Kantenglättung gezeichnet). Die Unterkante der Beschriftung liegt 1 px unter der des Werts (vorher 1.59 px).
+   Über der ersten Zeile (Zweck) eine Zeilenhöhe, 19 px (2.7.5): ganze Pixel, das Detail bleibt ganze Pixel hoch. */
 .ddetail { display: grid; grid-template-columns: max-content repeat(3, minmax(0, max-content)) minmax(0, 1fr); column-gap: var(--s3); row-gap: .25rem;
-  padding: 0 0 var(--s3) calc(.625rem + var(--s6)); font-size: .8rem; line-height: 1.1875rem; font-variant-numeric: tabular-nums; }
+  padding: 1.1875rem 0 var(--s3) calc(.625rem + var(--s6)); font-size: .8rem; line-height: 1.1875rem; font-variant-numeric: tabular-nums; }
 .dz { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
 .dz > span:not(.dk) { grid-column: 2 / -1; }
 .dz.lauf > span:not(.dk) { grid-column: auto; min-width: 0; overflow-wrap: anywhere; }
@@ -540,7 +541,8 @@ details[open] > summary::before { transform: rotate(45deg); }
 .rraster .titel { margin-bottom: var(--s3); justify-content: flex-start; column-gap: .3em; }
 .liste { margin: 0; padding: 0; list-style: none; display: grid; gap: .15rem; font-size: .8rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
 .liste .datum { display: inline-block; width: 7rem; color: var(--lbl); }
-/* Reiter als Pille (Vorlage .seg.small): Fenster des Rückblicks und der Modus-Umschalter im Kopf */
+/* Reiter als Pille (Vorlage .seg.small): Fenster des Rückblicks. Der Modus-Umschalter im Kopf trägt seit 2.7.5 .seg.klein wie die
+   Umschalter der Kacheln 2 und 3 und des Aufklappdetails, gleiche Grösse und gleiches aktives Segment. */
 .seg { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px; max-width: 100%; overflow-x: auto; margin: var(--s3) 0; }
 /* Farbmodus rechts im Kopf (der Sprachschalter daneben ist am 02.10.2026 entfallen). */
 .schalter { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }

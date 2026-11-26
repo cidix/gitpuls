@@ -2885,7 +2885,7 @@ def _seite(jetzt, rueckblick, ruhend, lang_param, handlung_offen=frozenset(), he
 <link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" href="{STATIK["icon.svg"]}" type="image/svg+xml"><link rel="apple-touch-icon" href="{STATIK["apple-touch-icon.png"]}">
 {MODUS_KOPF}{WAHL_KOPF}<link rel="stylesheet" href="{STATIK["tokens.css"]}"><link rel="stylesheet" href="{STATIK["style.css"]}"></head>
 <body>
-<header><h1><a href="{f"/?lang={sprache}" if lang_param else "/"}">gitpuls</a></h1><div class="schalter"><nav class="seg small modus" aria-label="{t("modus.aria")}">{"".join(f'<button type="button" data-wahl="{w}">{t(k)}</button>' for w, k in MODI)}</nav></div></header>
+<header><h1><a href="{f"/?lang={sprache}" if lang_param else "/"}">gitpuls</a></h1><div class="schalter"><nav class="seg klein modus" aria-label="{t("modus.aria")}">{"".join(f'<button type="button" data-wahl="{w}">{t(k)}</button>' for w, k in MODI)}</nav></div></header>
 <main>
 {server}
 <section class="zone github">
