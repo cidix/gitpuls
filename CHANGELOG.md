@@ -254,6 +254,13 @@ First public release.
 
 [Unreleased]: https://github.com/cidix/gitpuls/compare/v2.7.6...HEAD
 [2.7.6]: https://github.com/cidix/gitpuls/compare/v2.7.5...v2.7.6
+[2.7.5]: https://github.com/cidix/gitpuls/compare/v2.7.4...v2.7.5
+[2.7.4]: https://github.com/cidix/gitpuls/compare/v2.7.3...v2.7.4
+[2.7.3]: https://github.com/cidix/gitpuls/compare/v2.7.2...v2.7.3
+[2.7.2]: https://github.com/cidix/gitpuls/compare/v2.7.1...v2.7.2
+[2.7.1]: https://github.com/cidix/gitpuls/compare/v2.7.0...v2.7.1
+[2.7.0]: https://github.com/cidix/gitpuls/compare/v2.6.0...v2.7.0
+[2.6.0]: https://github.com/cidix/gitpuls/compare/v2.5.2...v2.6.0
 [2.5.2]: https://github.com/cidix/gitpuls/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/cidix/gitpuls/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/cidix/gitpuls/compare/v2.4.1...v2.5.0
