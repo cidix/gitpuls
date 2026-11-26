@@ -2780,7 +2780,7 @@ WAHL_KOPF = ("<script>try{var w=document.documentElement,g=" + json.dumps(WAHL, 
              'html[data-rb] .rueckblick .fenster { visibility: hidden; } '
              f"{_WAHL_ZEIGEN} {{ visibility: visible; }} "
              "html[data-rb] .rueckblick .reiter button[aria-pressed], html[data-pd] nav[data-gruppe=\"pd\"] button[aria-pressed] { background: none; color: var(--sec); } "
-             f"{_WAHL_REITER} {{ background: var(--wahl); color: var(--wahl-txt); }}</style>")
+             f"{_WAHL_REITER} {{ background: var(--eis); color: var(--bg); }}</style>")
 
 
 def stand_block(c):

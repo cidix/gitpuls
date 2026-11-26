@@ -549,7 +549,9 @@ details[open] > summary::before { transform: rotate(45deg); }
 .seg.modus { margin: 0; }
 .seg a, .seg button { font: inherit; background: none; border: 0; cursor: pointer; color: var(--sec); font-weight: 600; font-size: .8rem; letter-spacing: .01em; padding: .35rem .8rem; min-height: 30px; border-radius: 999px; white-space: nowrap; display: inline-flex; align-items: center; }
 .seg a:hover, .seg button:hover { text-decoration: none; color: var(--txt); }
-.seg a[aria-current], .seg button[aria-pressed="true"] { background: var(--wahl); color: var(--wahl-txt); }
+/* Aktives Segment jeder Segmentleiste (2.7.6): Akzentfarbe der Zahlen, Balken und des Rings, Schrift in der Farbe des Seitengrunds;
+   Werte in tokens.css (--eis, --bg). Dieselben zwei Variablen nutzt die Vorabregel im Kopf (WAHL_KOPF). */
+.seg a[aria-current], .seg button[aria-pressed="true"] { background: var(--eis); color: var(--bg); }
 /* Die drei Fenster liegen übereinander in einer Rasterzelle, die verborgenen bleiben im Fluss (visibility):
    die Kachel ist so hoch wie das höchste Fenster, und ein Wechsel ändert die Dokumenthöhe nicht. Gemessen
    am 11.09.2026: mit display:none war das 90-Tage-Fenster 1 px kürzer, und am Seitenende klemmte scrollY

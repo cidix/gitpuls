@@ -2155,11 +2155,23 @@ s = seite()
 assert s.index("localStorage.getItem('gitpuls-modus')") < s.index("tokens.css") and 'content="light dark"' in s
 assert s.count('data-wahl=') == 2 and 'data-wahl="system"' not in s and "'system'" not in s, "zwei Segmente, kein dritter Zustand"
 assert "prefers-color-scheme" in s and "removeItem('gitpuls-modus')" in s, "Listener und Rückfall auf das System"
-# Der Modus-Umschalter trägt die Klasse der übrigen Segmentleisten (2.7.5): gleiche Grösse, aktives Segment über dieselbe Regel und --wahl,
+# Der Modus-Umschalter trägt die Klasse der übrigen Segmentleisten (2.7.5): gleiche Grösse, aktives Segment über dieselbe Regel (seit 2.7.6 --eis auf --bg),
 # kein eigener Farbwert. Gemessen in Chrome 158 bei 1280 px: hell und dunkel identisch mit Kachel 2, Kachel 3 und Aufklappdetail.
 assert '<nav class="seg klein modus"' in s and 'class="seg small modus"' not in s, re.search(r'<nav class="[^"]*modus"', s)
 assert not [r for r in re.findall(r"([^{}]+)\{[^{}]*(?:background|color)[^{}]*\}", re.sub(r"/\*.*?\*/", "", (web.WEB / "style.css").read_text(), flags=re.S))
             if ".modus" in r], "keine eigene Farbregel für den Modus-Umschalter"
+# Aktives Segment (2.7.6): Akzentfarbe der Zahlen (--eis) mit Schrift in der Farbe des Seitengrunds (--bg), in der Regel aller Segmentleisten
+# und in der Vorabregel im Kopf; kein eigenes Token. Kontrast aus den Token-Werten je Modus mindestens 4.5:1.
+assert '.seg a[aria-current], .seg button[aria-pressed="true"] { background: var(--eis); color: var(--bg); }' in (web.WEB / "style.css").read_text()
+assert "{ background: var(--eis); color: var(--bg); }</style>" in web.WAHL_KOPF and "--wahl" not in tokens + (web.WEB / "style.css").read_text() + web.WAHL_KOPF
+def _lum(hexwert):
+    k = [int(hexwert[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    k = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in k]
+    return .2126 * k[0] + .7152 * k[1] + .0722 * k[2]
+_paar = lambda name: re.search(rf"{name}: light-dark\((#[0-9A-Fa-f]{{6}}), (#[0-9A-Fa-f]{{6}})\)", tokens).groups()
+for _i, _modus in enumerate(("hell", "dunkel")):
+    _a, _b = sorted((_lum(_paar("--eis")[_i]), _lum(_paar("--bg")[_i])), reverse=True)
+    assert (_a + .05) / (_b + .05) >= 4.5, (_modus, round((_a + .05) / (_b + .05), 2))
 # Dienst-Detail (2.7.5): eine Zeilenhöhe (19 px) über der ersten Zeile, ganze Pixel; gemessen in Chrome bei allen sieben Diensten 19 px.
 _dd = re.search(r"\.ddetail \{[^}]*\}", (web.WEB / "style.css").read_text()).group(0)
 assert "padding: 1.1875rem 0 var(--s3)" in _dd and "line-height: 1.1875rem" in _dd, _dd

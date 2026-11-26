@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.6] - 2026-11-26
+
+### Changed
+
+- In dark mode, the selected segment of every switch has the accent color of the figures, with dark text.
+
 ## [2.7.5] - 2026-11-26
 
 ### Changed
@@ -246,7 +252,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.5.2...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.7.6...HEAD
+[2.7.6]: https://github.com/cidix/gitpuls/compare/v2.7.5...v2.7.6
 [2.5.2]: https://github.com/cidix/gitpuls/compare/v2.5.1...v2.5.2
 [2.5.1]: https://github.com/cidix/gitpuls/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/cidix/gitpuls/compare/v2.4.1...v2.5.0
