@@ -16,14 +16,15 @@
 <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-30363d?labelColor=30363d">
 </p>
 
-<p><sub>Published as is, no support. <a href="#status">Status</a></sub></p>
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
   <img alt="GitHub zone with demo data: the summary sentence, commits of the last 7 days by repository, six items that need attention, a 15-day streak and the tiles for today, the last 7 days and the last 30 days" src="docs/screenshots/hero-light.png">
 </picture>
 
 </div>
+
+> **Status: published as is, no support.**
+> gitpuls is shared publicly in case it is useful to others. It is provided "as is", without warranty of any kind (see LICENSE). There is no support, no maintenance guarantee and no roadmap. Bug reports are welcome but not guaranteed a response; pull requests are not accepted. Security problems: please use private vulnerability reporting. Do not expose it to the internet without an authenticating reverse proxy. You are responsible for running and updating your own instance.
 
 ## The whole page
 
@@ -157,10 +158,6 @@ To use an existing volume that `docker compose down -v` must not remove, create 
 - nat and raw are compared without the lines Docker and tailscaled write on every start: the chains `DOCKER*` and `ts-*` with the jumps into them, `MASQUERADE` per Docker bridge (`docker0`, `br-…`), and in raw the `DROP` per container address and per published port on `127.0.0.1` (only ports with a `DNAT` in the nat chain `DOCKER`). Measured on Docker 29.9 and Tailscale 1.104; every other line, including your own rules on `docker0`, stays in the comparison. A table with only `ACCEPT` policies and no rules counts as empty, like a table that was not saved.
 - The reason for a required reboot comes from `/var/run/reboot-required.pkgs` (Debian, Ubuntu); without that file it shows "reason not reported".
 - `tools/server-stand` reads containers through the `docker` CLI. With rootless Docker, set `DOCKER_HOST` (e.g. `unix:///run/user/1000/docker.sock`) and `GITPULS_SERVER_ZIEL` (the volume's mount point from `docker volume inspect gitpuls-daten`, plus `/server.json`) in `.env`. With Podman, set `GITPULS_SERVER_ZIEL` the same way and install `podman-docker`; without it, containers show "not measured".
-
-## Status
-
-**Status: published as is, no support.** Shared publicly in case it is useful to others and provided "as is", without warranty of any kind (see LICENSE); no support, no maintenance guarantee, no roadmap. Bug reports are welcome but not guaranteed a response; pull requests are not accepted. Security problems: please use private vulnerability reporting. Do not expose it to the internet without an authenticating reverse proxy. You are responsible for running and updating your own instance.
 
 ## Security
 
