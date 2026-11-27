@@ -3126,11 +3126,15 @@ for d_ in sp_["dienste"]:
     d_["zweck"], d_["link"] = f'Zweck von {d_["name"]}', "https://host-01.example.ts.net:8447/"
 sp_["dienste"][0]["link"] = "https://host-01.example.ts.net/"
 heute_ = jetzt.astimezone(web.TZ).date()
-SPUREN = re.compile(r'<summary><i class="punkt \w+" aria-hidden="true"></i><a class="pname" href="[^"]*" translate="no">[^<]*</a>'
+SPUREN = re.compile(r'<summary><i class="punkt \w+" aria-hidden="true"></i><a class="pname" href="[^"]*" target="_blank" rel="noopener noreferrer" translate="no">[^<]*</a>'
                     r'<span class="palter dport">\d+</span><span class="palter dzustand">.*?</span>'
                     r'<span class="palter dzeit">[^<]*</span><span class="chev" aria-hidden="true"></span></summary>')
 block_ = web.server_dienste_block(sp_, jetzt)
 assert len(SPUREN.findall(block_)) == len(sp_["dienste"]) == block_.count('class="dienst"'), block_[:600]
+# Dienstname öffnet den Dienst in einem neuen Tab (27.11.2026); ohne Adresse bleibt er Text, nie href="" auf die eigene Seite.
+assert '<a class="pname" href="https://host-01.example.ts.net/" target="_blank" rel="noopener noreferrer" translate="no">' in block_, block_[:600]
+ohne_link_ = web.server_dienste_block({**sp_, "dienste": [{**sp_["dienste"][0], "link": ""}]}, jetzt)
+assert f'<span class="pname" translate="no">{sp_["dienste"][0]["name"]}</span>' in ohne_link_ and "<a " not in ohne_link_.split("</summary>")[0], ohne_link_[:400]
 kopfzeile_ = lambda *k: f'<p class="pgruppe spalten dkopf"><span class="dname">{k[0]}</span><span class="dport">{k[1]}</span><span class="dzustand">{k[2]}</span><span class="pkalter">{k[3]}</span></p>'
 assert block_.startswith(kopfzeile_("Dienst", "Port", "Zustand", "Zuletzt") + '<details class="dienst">') and block_.count("dkopf") == 1, block_[:300]
 with sprache.gilt("en"):

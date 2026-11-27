@@ -1808,7 +1808,10 @@ def server_dienste_block(s, jetzt):
             elif alter > DEPLOY_ALT_S:
                 dep = f'<span class="glut">{t("dn.veraltet", zeitpunkt(dp["gemessen"]))}: {dep}</span>'
         det.append(f'<div class="dz"><span class="dk">{t("dn.stand_k")}</span><span>{dep}</span></div>')
-        return (f'<details class="dienst"><summary><i class="punkt {punkt}" aria-hidden="true"></i><a class="pname" href="{html.escape(d.get("link") or "")}" translate="no">{html.escape(d["name"])}</a>'
+        # Der Name öffnet den Dienst in einem neuen Tab (27.11.2026); ein Klick auf einen Link im summary klappt nicht auf.
+        name = (f'<a class="pname" href="{html.escape(d["link"])}" target="_blank" rel="noopener noreferrer" translate="no">{html.escape(d["name"])}</a>'
+                if d.get("link") else f'<span class="pname" translate="no">{html.escape(d["name"])}</span>')
+        return (f'<details class="dienst"><summary><i class="punkt {punkt}" aria-hidden="true"></i>{name}'
                 f'<span class="palter dport">{link_port(d.get("link"))}</span><span class="palter dzustand">{zustand}</span>'
                 f'<span class="palter dzeit">{lauf_zeit(zeit, heute)}</span>'
                 f'<span class="chev" aria-hidden="true"></span></summary><div class="ddetail">{"".join(det)}</div></details>')

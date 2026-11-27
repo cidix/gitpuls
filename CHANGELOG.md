@@ -6,6 +6,12 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.7.7] - 2026-11-27
+
+### Changed
+
+- Clicking a service name in the server zone opens the service in a new tab. A service without an address shows its name as plain text.
+
 ## [2.7.6] - 2026-11-26
 
 ### Changed
@@ -252,7 +258,8 @@ First public release.
   token read from a file mounted read-only, container runs as UID 10001 with a read-only root file system and no
   capabilities.
 
-[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.7.6...HEAD
+[Unreleased]: https://github.com/cidix/gitpuls/compare/v2.7.7...HEAD
+[2.7.7]: https://github.com/cidix/gitpuls/compare/v2.7.6...v2.7.7
 [2.7.6]: https://github.com/cidix/gitpuls/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/cidix/gitpuls/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/cidix/gitpuls/compare/v2.7.3...v2.7.4
